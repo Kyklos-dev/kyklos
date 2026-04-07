@@ -26,7 +26,7 @@ jobs:
       - name: Build dashboard
         run: cd dashboard && npm ci && npm run build
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: web-dist
           path: dashboard/dist
@@ -90,7 +90,7 @@ jobs:
           fi
           echo "file=$OUT" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: binary-${{ matrix.goos }}-${{ matrix.goarch }}
           path: ${{ steps.pack.outputs.file }}
