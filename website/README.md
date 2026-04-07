@@ -36,9 +36,19 @@ Set project **Root Directory** to **`website`**. `vercel.json` runs `npm run bui
 
 The workflow **`.github/workflows/pages.yml`** builds with `VITEPRESS_BASE=/<repo>/` and deploys via **GitHub Actions**.
 
-1. In the repository: **Settings → Pages → Build and deployment → Source**: choose **GitHub Actions** (not “Deploy from a branch”).
-2. Push to **`main`** (or run the workflow manually). The site is served at  
-   **`https://<owner>.github.io/<repo>/`** (for example `https://kyklos-dev.github.io/kyklos/`).
+### One-time setup (required)
+
+1. Open **Settings → Pages** for the repository.
+2. Under **Build and deployment**, set **Source** to **GitHub Actions** (not “Deploy from a branch”). Save if prompted.
+3. Until this is done, the deploy step fails with **`HttpError: Not Found` / `Failed to create deployment (status: 404)`** — there is no Pages site for the API to attach to.
+
+Then push to **`main`** (or **Actions → Deploy docs (GitHub Pages) → Run workflow**). The site URL is:
+
+**`https://<owner>.github.io/<repo>/`** (e.g. `https://kyklos-dev.github.io/kyklos/`).
+
+### Private repositories
+
+On **GitHub Free**, **GitHub Pages does not serve private repos**. Use a **public** repo for `*.github.io` hosting, or host the built `website/.vitepress/dist` elsewhere (e.g. Vercel above).
 
 Local preview always uses **`/`** as base; no extra env needed for `npm run dev`.
 
