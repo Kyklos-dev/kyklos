@@ -13,7 +13,8 @@ export default defineConfig({
   description:
     "CI/CD-style orchestration for AI agent pipelines — pipelines, runs, eval fingerprints, dashboard.",
   head: [
-    ["link", { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" }],
+    // Must include `base` — a root-absolute `/favicon.svg` breaks on GitHub project pages (/repo/).
+    ["link", { rel: "icon", href: `${base}favicon.svg`, type: "image/svg+xml" }],
     ["meta", { name: "theme-color", content: "#24292f" }],
   ],
   appearance: true,

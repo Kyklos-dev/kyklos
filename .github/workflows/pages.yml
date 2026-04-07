@@ -35,6 +35,8 @@ jobs:
         env:
           VITEPRESS_BASE: /${{ github.event.repository.name }}/
         run: npm ci && npm run build
+      - name: Disable Jekyll (ensure static assets are served)
+        run: touch website/.vitepress/dist/.nojekyll
       - name: Push to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
         with:

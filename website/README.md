@@ -50,4 +50,11 @@ On **GitHub Free**, **GitHub Pages does not serve private repos**. Use a **publi
 
 Local preview always uses **`/`** as base; no extra env needed for `npm run dev`.
 
+### GitHub Pages URL
+
+Open the site at **`https://<owner>.github.io/<repo>/`** (include the **repository name** in the path).  
+`https://<owner>.github.io/` alone is a **different** site and will not show this project.
+
+If the page looks **unstyled** or the layout is wrong, the usual cause is opening the wrong URL (missing `/<repo>/`), or raw HTML links in Markdown that start with `/…` (domain root) instead of paths relative to the site base — the home page Explore cards use **relative** `href="guides/…"` so they work on GitHub Pages.
+
 Longer narrative docs also live in the repo **`docs/`** folder for GitHub-only readers; keep product truth in sync when behavior changes.

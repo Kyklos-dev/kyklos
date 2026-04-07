@@ -35,31 +35,31 @@ features:
 
 <div class="ky-doc-cards">
 
-<a class="ky-doc-card" href="/guides/understanding-kyklos">
+<a class="ky-doc-card" href="guides/understanding-kyklos">
   <h3>Understanding Kyklos</h3>
   <p>Components, how a run flows, and Kyklos-specific features (scores, gates, artifacts).</p>
   <span class="more">Read →</span>
 </a>
 
-<a class="ky-doc-card" href="/introduction/what-is-kyklos">
+<a class="ky-doc-card" href="introduction/what-is-kyklos">
   <h3>Product overview</h3>
   <p>One-page pitch: orchestration, scores, artifacts, and self-hosted control plane.</p>
   <span class="more">Read →</span>
 </a>
 
-<a class="ky-doc-card" href="/guides/pipelines/">
+<a class="ky-doc-card" href="guides/pipelines/">
   <h3>Pipelines & YAML</h3>
   <p>Structure, reference, gates, examples — concepts plus lookup tables.</p>
   <span class="more">Read →</span>
 </a>
 
-<a class="ky-doc-card" href="/concepts/architecture">
+<a class="ky-doc-card" href="concepts/architecture">
   <h3>Architecture</h3>
   <p>Server, scheduler, engine, persistence — how the binary is organized.</p>
   <span class="more">Read →</span>
 </a>
 
-<a class="ky-doc-card" href="/getting-started">
+<a class="ky-doc-card" href="getting-started">
   <h3>Use a release</h3>
   <p>Download a binary, set KYKLOS_STEPS_DIR, run — minimal install path.</p>
   <span class="more">Read →</span>
