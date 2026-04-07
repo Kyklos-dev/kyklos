@@ -5,9 +5,6 @@ hero:
   name: Kyklos
   text: Test & eval orchestration for AI agents
   tagline: Scores, gates, and artifacts for agent evaluation—not a replacement for general CI. Self-hosted runs, dashboard, and API.
-  image:
-    src: /hero.svg
-    alt: Kyklos
   actions:
     - theme: brand
       text: Understanding Kyklos
