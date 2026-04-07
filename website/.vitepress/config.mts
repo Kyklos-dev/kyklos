@@ -34,7 +34,7 @@ export default defineConfig({
       { text: "Guides", link: "/guides/pipelines/", activeMatch: "/guides/" },
       { text: "Use a release", link: "/getting-started" },
       { text: "Contributing", link: "/contributing/", activeMatch: "/contributing/" },
-      { text: "GitHub", link: "https://github.com/kyklos/kyklos" },
+      { text: "GitHub", link: "https://github.com/Kyklos-dev/kyklos" },
     ],
     sidebar: [
       {
@@ -89,9 +89,10 @@ export default defineConfig({
         items: [{ text: "FAQ", link: "/faq" }],
       },
     ],
-    socialLinks: [{ icon: "github", link: "https://github.com/kyklos/kyklos" }],
+    socialLinks: [{ icon: "github", link: "https://github.com/Kyklos-dev/kyklos" }],
     footer: {
-      message: "Released under the MIT License.",
+      message:
+        'Released under the MIT License · <a href="https://github.com/Kyklos-dev/kyklos" target="_blank" rel="noopener">Source on GitHub</a>',
       copyright: "Copyright © Kyklos contributors",
     },
     search: { provider: "local" },

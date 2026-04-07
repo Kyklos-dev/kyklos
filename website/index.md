@@ -15,6 +15,11 @@ hero:
     - theme: alt
       text: What is Kyklos?
       link: /introduction/what-is-kyklos
+    - theme: alt
+      text: GitHub
+      link: https://github.com/Kyklos-dev/kyklos
+      target: _blank
+      rel: "noopener noreferrer"
 
 features:
   - title: Pipeline-native semantics

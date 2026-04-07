@@ -2,6 +2,8 @@
 
 Product-focused static docs. **Recommended hosting: [Vercel](https://vercel.com)** (see below). The site is built from this **`website/`** directory only.
 
+**Live:** [kyklos-mroa2pbl8-kyklos-devs-projects.vercel.app](https://kyklos-mroa2pbl8-kyklos-devs-projects.vercel.app/) · **Repo:** [github.com/Kyklos-dev/kyklos](https://github.com/Kyklos-dev/kyklos)
+
 **Branding:** Nav uses **`public/logo.svg`** / **`logo-dark.svg`** (wordmark + “DOCUMENTATION”). Styling uses neutral surfaces, blue links, and system fonts (see `.vitepress/theme/custom.css`). Favicon: **`public/favicon.svg`**.
 
 **How docs are written:** **Understanding** pages explain components and flow; **structure** pages show how YAML is read top-to-bottom; **reference** pages are lookup tables; **best practices** pages are short, scannable rules. Use **`::: tip`** / **`::: warning`** where helpful.

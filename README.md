@@ -4,11 +4,21 @@
 
 ---
 
+## Documentation (live site)
+
+| | |
+|--|--|
+| **Browse online** | **[Live documentation (Vercel)](https://kyklos-mroa2pbl8-kyklos-devs-projects.vercel.app/)** — product docs: concepts, guides, pipelines, configuration, dashboard & API. |
+| **Repository** | **[github.com/Kyklos-dev/kyklos](https://github.com/Kyklos-dev/kyklos)** |
+| **Build / deploy** | Source: [`website/`](website/) — `cd website && npm ci && npm run build`. Host on **Vercel** with root **`website/`** (see [`website/README.md`](website/README.md)). |
+
+---
+
 ## Documentation for users
 
 | Doc | Audience |
 |-----|----------|
-| **[VitePress docs site](website/)** | **Product docs** (releases, concepts, pipelines) + **Contributing** (local dev). Build: `cd website && npm ci && npm run build`. Deploy **`website/`** to **Vercel** (see `website/README.md`). |
+| **[VitePress docs site](website/)** | Same content as the live site above; edit Markdown under `website/`, build locally, or deploy to Vercel. |
 | **[User guide](docs/user-guide.md)** | Full narrative guide in-repo (Markdown). |
 | [Getting started](docs/getting-started.md) | Commands, build, database, smoke test |
 | [Configuration](docs/configuration.md) | Server YAML, SQLite |
