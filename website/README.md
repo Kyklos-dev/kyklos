@@ -1,16 +1,16 @@
 # Kyklos documentation site (VitePress)
 
-Product-focused static docs (deploy e.g. on **Vercel** with root **`website/`**).
+Product-focused static docs. **Recommended hosting: [Vercel](https://vercel.com)** (see below). The site is built from this **`website/`** directory only.
 
 **Branding:** Nav uses **`public/logo.svg`** / **`logo-dark.svg`** (wordmark + “DOCUMENTATION”). Styling uses neutral surfaces, blue links, and system fonts (see `.vitepress/theme/custom.css`). Favicon: **`public/favicon.svg`**.
 
-**How docs are written:** **Understanding** pages explain components and flow; **structure** pages show how YAML is read top-to-bottom; **reference** pages are lookup tables; **best practices** pages are short, scannable rules (see [ADK Artifacts best practices](https://adk.dev/artifacts/#best-practices) for the pattern). Use **`::: tip`** / **`::: warning`** for reading order and caveats. Prefer **Kyklos-specific behavior** over comparisons to other CI products.
+**How docs are written:** **Understanding** pages explain components and flow; **structure** pages show how YAML is read top-to-bottom; **reference** pages are lookup tables; **best practices** pages are short, scannable rules. Use **`::: tip`** / **`::: warning`** where helpful.
 
 ## What this site is for
 
 - **Product**: what Kyklos is, features, concepts, pipelines, configuration, dashboard/API.
 - **Users of releases**: short **[Use a release](/getting-started)** page (binary + `KYKLOS_STEPS_DIR`).
-- **Contributors**: **[Contributing](/contributing/)** — clone, `make build-ui`, `make run`, tests (not required to *use* Kyklos).
+- **Contributors**: **[Contributing](/contributing/)** — clone, `make build-ui`, `make run`, tests.
 
 ## Local preview
 
@@ -19,42 +19,58 @@ npm ci
 npm run dev
 ```
 
-## Build
+Open the URL VitePress prints (usually `http://localhost:5173`).
+
+## Production build
 
 ```bash
 npm ci
 npm run build
 ```
 
-Output: `.vitepress/dist/`
+Output: **`.vitepress/dist/`**
 
-## Vercel
+On Vercel you do **not** set `VITEPRESS_BASE` — the site is served at the **root** of your deployment URL (e.g. `https://your-project.vercel.app/`), so the default VitePress **`base: "/"`** is correct.
 
-Set project **Root Directory** to **`website`**. `vercel.json` runs `npm run build` and publishes `.vitepress/dist`.
+---
 
-## GitHub Pages
+## Deploy on Vercel
 
-The workflow **`.github/workflows/pages.yml`** builds the site with `VITEPRESS_BASE=/<repo>/` and **pushes the result to the `gh-pages` branch** (branch-based publishing — avoids the separate “GitHub Actions” Pages deployment API that can return **404** if Pages isn’t provisioned that way).
+`vercel.json` in this folder tells Vercel to run **`npm ci`**, **`npm run build`**, and publish **`.vitepress/dist`**.
 
-### One-time setup
+### 1. Push your repo to GitHub (or GitLab / Bitbucket)
 
-1. **Settings → Actions → General → Workflow permissions**: set **Read and write permissions** for workflows (the job must be allowed to push to `gh-pages` with `GITHUB_TOKEN`).
-2. Run the workflow once (**Actions → Deploy docs (GitHub Pages) → Run workflow**) or push to **`main`** under `website/`.
-3. **Settings → Pages → Build and deployment**: set **Source** to **Deploy from a branch**, **Branch** = **`gh-pages`**, folder **`/ (root)`**, then Save.
+Vercel will pull from the remote on each push to the branch you select.
 
-The site URL is **`https://<owner>.github.io/<repo>/`** (e.g. `https://kyklos-dev.github.io/kyklos/`).
+### 2. Import the project
 
-### Private repositories
+1. Go to [vercel.com/new](https://vercel.com/new) and sign in.
+2. **Add New… → Project** and import your repository.
 
-On **GitHub Free**, **GitHub Pages does not serve private repos**. Use a **public** repo, or deploy elsewhere (e.g. Vercel above).
+### 3. Configure the project (important for a monorepo)
 
-Local preview always uses **`/`** as base; no extra env needed for `npm run dev`.
+| Setting | Value |
+|--------|--------|
+| **Root Directory** | **`website`** (click “Edit” and set to the `website` folder) |
+| **Framework Preset** | Other / Vite (optional; `vercel.json` already defines build) |
+| **Build Command** | `npm run build` (default from `vercel.json`) |
+| **Output Directory** | `.vitepress/dist` (default from `vercel.json`) |
+| **Install Command** | `npm ci` (default from `vercel.json`) |
 
-### GitHub Pages URL
+Leave **Environment Variables** empty unless you add something custom later.
 
-Open the site at **`https://<owner>.github.io/<repo>/`** (include the **repository name** in the path).  
-`https://<owner>.github.io/` alone is a **different** site and will not show this project.
+### 4. Deploy
 
-If the page looks **unstyled** or the layout is wrong, the usual cause is opening the wrong URL (missing `/<repo>/`), or raw HTML links in Markdown that start with `/…` (domain root) instead of paths relative to the site base — the home page Explore cards use **relative** `href="guides/…"` so they work on GitHub Pages.
+Click **Deploy**. After the first build succeeds, your docs live at **`https://<project-name>.vercel.app`** (or your team’s default domain).
 
-Longer narrative docs also live in the repo **`docs/`** folder for GitHub-only readers; keep product truth in sync when behavior changes.
+### 5. Optional
+
+- **Custom domain:** Project → **Settings → Domains** — add your DNS records as prompted.
+- **Production branch:** Project → **Settings → Git** — usually **`main`**.
+- **Preview deployments:** Every PR gets a preview URL automatically.
+
+---
+
+## Repo `docs/` folder
+
+Longer narrative Markdown also lives in the repository **`docs/`** folder (for editors who browse the repo on GitHub). Keep product behavior in sync with this VitePress site when you change features.
