@@ -1,6 +1,14 @@
 import { defineConfig } from "vitepress";
 
+/** GitHub project pages need a repo prefix (e.g. /kyklos/). Set VITEPRESS_BASE in CI. */
+const base = (() => {
+  const b = process.env.VITEPRESS_BASE?.trim();
+  if (!b) return "/";
+  return b.endsWith("/") ? b : `${b}/`;
+})();
+
 export default defineConfig({
+  base,
   title: "Kyklos",
   description:
     "CI/CD-style orchestration for AI agent pipelines — pipelines, runs, eval fingerprints, dashboard.",

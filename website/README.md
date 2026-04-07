@@ -32,4 +32,14 @@ Output: `.vitepress/dist/`
 
 Set project **Root Directory** to **`website`**. `vercel.json` runs `npm run build` and publishes `.vitepress/dist`.
 
+## GitHub Pages
+
+The workflow **`.github/workflows/pages.yml`** builds with `VITEPRESS_BASE=/<repo>/` and deploys via **GitHub Actions**.
+
+1. In the repository: **Settings → Pages → Build and deployment → Source**: choose **GitHub Actions** (not “Deploy from a branch”).
+2. Push to **`main`** (or run the workflow manually). The site is served at  
+   **`https://<owner>.github.io/<repo>/`** (for example `https://kyklos-dev.github.io/kyklos/`).
+
+Local preview always uses **`/`** as base; no extra env needed for `npm run dev`.
+
 Longer narrative docs also live in the repo **`docs/`** folder for GitHub-only readers; keep product truth in sync when behavior changes.
