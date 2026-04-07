@@ -1,0 +1,44 @@
+# Demo: multi-stage “eval-shaped” flow using only kyklos/wait (no API keys).
+# Total wall time ~8s (4 × 2s). Use with manual trigger + workspace_path = repo root.
+version: "1.0"
+name: Agent eval — mock stages
+
+agent:
+  model: claude-haiku-4-5-20251001
+  prompt: ./examples/long-running-test/prompt.md
+  runner:
+    type: anthropic
+
+triggers:
+  - on: manual
+
+pipeline:
+  - name: build
+    steps:
+      - uses: kyklos/wait
+        name: mock-compile
+        with:
+          seconds: 2
+
+  - name: test
+    steps:
+      - uses: kyklos/wait
+        name: mock-unit-tests
+        with:
+          seconds: 2
+
+  - name: evaluate
+    steps:
+      - uses: kyklos/wait
+        name: mock-eval-harness
+        with:
+          seconds: 2
+    pass_if:
+      mock-eval-harness.waited_seconds: ">= 0"
+
+  - name: register
+    steps:
+      - uses: kyklos/wait
+        name: mock-tag
+        with:
+          seconds: 2

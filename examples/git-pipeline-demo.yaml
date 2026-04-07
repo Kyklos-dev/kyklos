@@ -1,0 +1,98 @@
+# Example: pipeline that clones a Git repo, then runs build → test → evaluate stages
+# with eval_bundle, pass_if gates, and on_fail (abort / goto / retry).
+#
+# HOW TO USE
+# 1. Set `repository.url` (and `branch`) to a repo that contains the files referenced
+#    below (prompt, dataset). Easiest: use a clone of this kyklos repo, or your own
+#    agent repo that includes those paths.
+# 2. For private HTTPS repos, set GITHUB_TOKEN or KYKLOS_GIT_TOKEN on the server,
+#    or set `repository.token_env` to an env var name holding a PAT.
+# 3. Ensure ANTHROPIC_API_KEY (or your provider) is available to the step runner if
+#    you use kyklos/run-dataset or other LLM steps.
+#
+version: "1.0"
+name: git-pipeline-demo
+
+# Clone this URL into the run workspace (paths in the rest of the YAML are relative to it).
+repository:
+  url: https://github.com/YOUR_ORG/YOUR_REPO.git
+  branch: main
+  # token_env: GITHUB_TOKEN   # uncomment if the server should read the PAT from this env var name
+
+# Pins what counts as "this eval" for fingerprints (optional but recommended).
+eval_bundle:
+  id: demo-2026q1
+  prompt: ./examples/long-running-test/prompt.md
+  dataset: ./examples/datasets/hello.jsonl
+
+agent:
+  model: claude-haiku-4-5-20251001
+  prompt: ./examples/long-running-test/prompt.md
+  runner:
+    type: anthropic
+
+triggers:
+  - on: manual
+  # - on: push
+  #   branch: main
+  # - on: schedule
+  #   cron: "0 9 * * 1"
+
+pipeline:
+  # ── Stage 1: validate agent YAML + snapshot workspace ─────────────────────
+  - name: build
+    steps:
+      - uses: kyklos/lint
+      - uses: kyklos/snapshot
+
+  # ── Stage 2: run dataset + quality gate ──────────────────────────────────
+  - name: test
+    steps:
+      - uses: kyklos/run-dataset
+        name: run-dataset
+        with:
+          dataset: ./examples/datasets/hello.jsonl
+          concurrency: 2
+
+      - uses: kyklos/semantic-similarity
+        name: semantic-similarity
+        with:
+          from: test.kyklos/run-dataset
+          dataset: ./examples/datasets/hello.jsonl
+          threshold: 0.7
+
+    pass_if:
+      semantic-similarity.avg_similarity: ">= 0.70"
+
+    on_fail:
+      then: abort
+
+  # ── Stage 3: safety + cost checks ───────────────────────────────────────
+  - name: evaluate
+    steps:
+      - uses: kyklos/safety-check
+        name: safety-check
+        with:
+          from: test.kyklos/run-dataset
+
+      - uses: kyklos/cost-check
+        name: cost-check
+        with:
+          from: test.kyklos/run-dataset
+          max_usd: 0.25
+
+    pass_if:
+      safety-check.passed: "== true"
+
+    on_fail:
+      then: abort
+
+  # ── Stage 4: tag / register (optional) ───────────────────────────────────
+  - name: register
+    steps:
+      - uses: kyklos/tag
+        with:
+          tag: demo-passed
+
+notify:
+  on: [passed, failed]

@@ -1,0 +1,45 @@
+# Fictional demo: retry + goto + pass_if (only kyklos/wait — no LLM).
+# The "ship" stage uses an impossible pass_if so the gate always fails after the step succeeds.
+#
+version: "1.0"
+name: random-retry-goto-demo
+
+agent:
+  model: claude-haiku-4-5-20251001
+  prompt: ./examples/long-running-test/prompt.md
+  runner:
+    type: anthropic
+
+triggers:
+  - on: manual
+
+# Cap how many goto hops are allowed in one run (default 10 if omitted).
+max_goto: 5
+
+pipeline:
+  - name: build
+    steps:
+      - uses: kyklos/wait
+        name: compile
+        with:
+          seconds: 1
+    pass_if:
+      compile.waited_seconds: ">= 0"
+    on_fail:
+      then: abort
+
+  - name: ship
+    steps:
+      - uses: kyklos/wait
+        name: rocket
+        with:
+          seconds: 1
+    # Gate always fails: waited_seconds is ~1, not > 9000
+    pass_if:
+      rocket.waited_seconds: "> 9000"
+    on_fail:
+      retry:
+        max_attempts: 1
+        delay_seconds: 1
+      then: goto
+      goto: build

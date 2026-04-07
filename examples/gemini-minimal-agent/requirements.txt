@@ -1,0 +1,2 @@
+# Install into the same Python environment Kyklos uses for steps (see kyklos-server.yaml server.python_venv).
+google-generativeai>=0.8.0

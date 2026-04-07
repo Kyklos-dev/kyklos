@@ -1,0 +1,24 @@
+# Demo: gate failure after a successful step (for failed-run screenshots).
+version: "1.0"
+name: Gate failure demo
+
+agent:
+  model: claude-haiku-4-5-20251001
+  prompt: ./examples/long-running-test/prompt.md
+  runner:
+    type: anthropic
+
+triggers:
+  - on: manual
+
+pipeline:
+  - name: evaluate
+    steps:
+      - uses: kyklos/wait
+        name: quality-bar
+        with:
+          seconds: 1
+    pass_if:
+      quality-bar.waited_seconds: "> 999"
+    on_fail:
+      then: abort

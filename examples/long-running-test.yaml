@@ -1,0 +1,40 @@
+# Long-running pipeline for manual testing (dashboard polling, logs, duration UI).
+# Uses built-in kyklos/wait — no API keys or datasets required.
+#
+# Register this YAML in the Kyklos UI (paste) or point ParsePipelineFile at it from the repo root.
+# Trigger a manual run; wall time is ~70s (> 1 minute). Uses ./examples/long-running-test/prompt.md when validated from disk.
+#
+version: "1.0"
+name: long-running-test
+
+agent:
+  model: claude-haiku-4-5-20251001
+  prompt: ./examples/long-running-test/prompt.md
+  runner:
+    type: anthropic
+
+triggers:
+  - on: manual
+
+pipeline:
+  # Single stage ~70s — exceeds one minute.
+  - name: soak
+    steps:
+      - uses: kyklos/wait
+        name: minute-plus
+        with:
+          seconds: 70
+
+  # Optional: uncomment for a multi-stage ~2+ minute run (3 × 45s).
+  # - name: soak-b
+  #   steps:
+  #     - uses: kyklos/wait
+  #       with: { seconds: 45 }
+  # - name: soak-c
+  #   steps:
+  #     - uses: kyklos/wait
+  #       with: { seconds: 45 }
+  # - name: soak-d
+  #   steps:
+  #     - uses: kyklos/wait
+  #       with: { seconds: 45 }

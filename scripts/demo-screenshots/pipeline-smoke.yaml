@@ -1,0 +1,28 @@
+# Demo: minimal two-stage run for compact screenshots.
+version: "1.0"
+name: Smoke — two stages
+
+agent:
+  model: claude-haiku-4-5-20251001
+  prompt: ./examples/long-running-test/prompt.md
+  runner:
+    type: anthropic
+
+triggers:
+  - on: manual
+
+pipeline:
+  - name: setup
+    steps:
+      - uses: kyklos/wait
+        with:
+          seconds: 1
+
+  - name: check
+    steps:
+      - uses: kyklos/wait
+        name: final
+        with:
+          seconds: 1
+    pass_if:
+      final.waited_seconds: ">= 0"

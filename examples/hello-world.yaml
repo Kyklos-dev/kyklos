@@ -1,0 +1,83 @@
+version: "1.0"
+name: hello-world
+
+# Optional: pins prompt + dataset (+ model) into eval_bundle_fingerprint on each run.
+eval_bundle:
+  id: hello-v1
+  prompt: ./examples/long-running-test/prompt.md
+  dataset: ./examples/datasets/hello.jsonl
+
+# The agent under test — swap model/prompt for your own.
+agent:
+  model: claude-haiku-4-5-20251001
+  prompt: ./examples/long-running-test/prompt.md
+  runner:
+    type: anthropic
+
+# Triggers: manual only for local use.
+triggers:
+  - on: manual
+
+pipeline:
+  # ── Stage 1: Build ────────────────────────────────────────────────────────
+  - name: build
+    steps:
+      - uses: kyklos/lint
+      - uses: kyklos/snapshot
+
+  # ── Stage 2: Test ─────────────────────────────────────────────────────────
+  - name: test
+    steps:
+      - uses: kyklos/run-dataset
+        with:
+          dataset: ./examples/datasets/hello.jsonl
+          concurrency: 4
+
+      - uses: kyklos/semantic-similarity
+        name: semantic-similarity
+        with:
+          from: test.kyklos/run-dataset
+          dataset: ./examples/datasets/hello.jsonl
+          threshold: 0.7
+
+    pass_if:
+      semantic-similarity.avg_similarity: ">= 0.70"
+
+    on_fail:
+      then: abort
+
+  # ── Stage 3: Evaluate ─────────────────────────────────────────────────────
+  - name: evaluate
+    steps:
+      - uses: kyklos/safety-check
+        name: safety-check
+        with:
+          from: test.kyklos/run-dataset
+
+      - uses: kyklos/cost-check
+        name: cost-check
+        with:
+          from: test.kyklos/run-dataset
+          max_usd: 0.10
+
+      - uses: kyklos/latency-check
+        name: latency-check
+        with:
+          from: test.kyklos/run-dataset
+          max_p95_ms: 5000
+
+    pass_if:
+      safety-check.passed: "== true"
+
+    on_fail:
+      then: abort
+
+  # ── Stage 4: Register ─────────────────────────────────────────────────────
+  - name: register
+    steps:
+      - uses: kyklos/tag
+        with:
+          tag: latest
+
+notify:
+  on: [passed, failed]

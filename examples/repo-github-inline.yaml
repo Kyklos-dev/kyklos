@@ -1,0 +1,29 @@
+# Clone a GitHub repo by URL + branch into the run workspace (no kyklos-server.yaml repos: entry).
+# For private repos set GITHUB_TOKEN (or KYKLOS_GIT_TOKEN) in the server environment,
+# or set repository.token_env to an env var name holding a PAT.
+#
+# Replace the URL with your agent repo; adjust branch and paths to match your layout.
+#
+version: "1.0"
+name: github-inline-demo
+
+repository:
+  url: https://github.com/octocat/Hello-World.git
+  branch: master
+  # token_env: GITHUB_TOKEN
+
+agent:
+  model: claude-haiku-4-5-20251001
+  prompt: ./README.md
+  runner:
+    type: anthropic
+
+triggers:
+  - on: manual
+
+pipeline:
+  - name: test
+    steps:
+      - uses: kyklos/wait
+        with:
+          seconds: 3

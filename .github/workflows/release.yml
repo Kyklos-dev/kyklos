@@ -1,0 +1,119 @@
+# Build dashboard once, cross-compile kyklos, publish archives + checksums to GitHub Releases.
+# Trigger: push a tag matching v* (e.g. v0.1.0)
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+
+      - name: Build dashboard
+        run: cd dashboard && npm ci && npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: dashboard/dist
+
+  build-binaries:
+    needs: build-ui
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            ext: ""
+            archive: tar.gz
+          - goos: linux
+            goarch: arm64
+            ext: ""
+            archive: tar.gz
+          - goos: darwin
+            goarch: amd64
+            ext: ""
+            archive: tar.gz
+          - goos: darwin
+            goarch: arm64
+            ext: ""
+            archive: tar.gz
+          - goos: windows
+            goarch: amd64
+            ext: .exe
+            archive: zip
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "0"
+        run: go build -trimpath -ldflags="-s -w" -o "kyklos${{ matrix.ext }}" ./cmd/kyklos
+
+      - name: Pack archive
+        id: pack
+        run: |
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            OUT="kyklos-${{ matrix.goos }}-${{ matrix.goarch }}.zip"
+            zip -j "$OUT" "kyklos${{ matrix.ext }}" LICENSE README.md
+          else
+            OUT="kyklos-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz"
+            tar czf "$OUT" "kyklos${{ matrix.ext }}" LICENSE README.md
+          fi
+          echo "file=$OUT" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ steps.pack.outputs.file }}
+
+  release:
+    needs: build-binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect files and checksums
+        run: |
+          mkdir -p upload
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} upload/ \;
+          cd upload && sha256sum * > checksums-sha256.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: upload/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

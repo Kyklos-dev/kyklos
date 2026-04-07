@@ -1,0 +1,3 @@
+{"input": "Say hello in one sentence.", "expected": "Hello! How can I help you today?", "expected_output_contains": "Hello"}
+{"input": "What is 2 + 2?", "expected": "2 + 2 equals 4.", "expected_output_contains": "4"}
+{"input": "Name the capital of France.", "expected": "The capital of France is Paris.", "expected_output_contains": "Paris"}

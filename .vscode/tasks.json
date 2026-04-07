@@ -1,0 +1,28 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Kyklos: run server",
+      "type": "shell",
+      "command": "export KYKLOS_STEPS_DIR=\"${workspaceFolder}/steps\" && go run ./cmd/kyklos",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {}
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "focus": true
+      },
+      "group": "none",
+      "problemMatcher": []
+    },
+    {
+      "label": "Kyklos: open in browser",
+      "type": "shell",
+      "command": "xdg-open http://127.0.0.1:8080 2>/dev/null || open http://127.0.0.1:8080 2>/dev/null || echo 'Open http://127.0.0.1:8080 in your browser'",
+      "presentation": { "reveal": "silent" },
+      "problemMatcher": []
+    }
+  ]
+}

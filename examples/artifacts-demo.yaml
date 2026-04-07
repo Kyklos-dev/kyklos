@@ -1,0 +1,37 @@
+# Minimal pipeline to verify "Persisted artifacts" in the run UI
+# -----------------------------------------------------------------
+# The kyklos/snapshot step writes snapshot.json under the run artifact dir and
+# lists it in step artifacts — the engine copies it to artifact_store for download.
+#
+# HOW TO RUN
+# 1. Dashboard → New pipeline → paste this YAML → Save → Trigger run.
+# 2. Open the run → under the header you should see "Persisted artifacts" with
+#    a download link (snapshot.json).
+#
+# No Git repo required: the engine uses a temp workspace; snapshot still emits a file.
+# -----------------------------------------------------------------
+
+version: "1.0"
+name: artifacts-demo
+
+agent:
+  model: claude-haiku-4-5-20251001
+  prompt: ""
+
+triggers:
+  - on: manual
+
+pipeline:
+  - name: build
+    steps:
+      - uses: kyklos/snapshot
+        name: snap
+
+    pass_if:
+      snap.passed: "== true"
+
+    on_fail:
+      then: abort
+
+notify:
+  on: [passed, failed]

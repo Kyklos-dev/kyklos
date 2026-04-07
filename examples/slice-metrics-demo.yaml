@@ -1,0 +1,47 @@
+# Per-slice gates: exact-match and semantic-similarity emit scores like slice_eu, slice_us
+# when with.slice_field matches a column on dataset rows (e.g. region, product line).
+# Use pass_if on both overall metrics and slice_* for critical subgroups.
+#
+version: "1.0"
+name: slice-metrics-demo
+
+agent:
+  model: claude-haiku-4-5-20251001
+  prompt: ./examples/long-running-test/prompt.md
+  runner:
+    type: anthropic
+
+triggers:
+  - on: manual
+
+pipeline:
+  - name: test
+    steps:
+      - uses: kyklos/run-dataset
+        with:
+          dataset: ./examples/datasets/hello-slices.jsonl
+          concurrency: 2
+
+      - uses: kyklos/exact-match
+        name: exact-match
+        with:
+          dataset: ./examples/datasets/hello-slices.jsonl
+          field: response
+          slice_field: slice
+          from: test.kyklos/run-dataset
+
+      - uses: kyklos/semantic-similarity
+        name: semantic-similarity
+        with:
+          dataset: ./examples/datasets/hello-slices.jsonl
+          slice_field: slice
+          threshold: 0.7
+          from: test.kyklos/run-dataset
+
+    pass_if:
+      exact-match.accuracy: ">= 0.70"
+      exact-match.slice_eu: ">= 0.65"
+      semantic-similarity.avg_similarity: ">= 0.70"
+
+    on_fail:
+      then: abort

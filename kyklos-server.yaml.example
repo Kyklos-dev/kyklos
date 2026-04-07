@@ -1,0 +1,22 @@
+# kyklos-server.yaml — rename to kyklos-server.yaml and edit before running.
+#
+# All fields are optional; shown values are the defaults.
+
+server:
+  # Address to listen on. Use 0.0.0.0:8080 to expose on LAN.
+  bind: "127.0.0.1:8080"
+
+  # Root directory for git worktrees, inline pipeline clones, and dashboard "load from branch".
+  # Created automatically if possible. If omitted entirely, the built-in default is /var/kyklos/workspaces;
+  # when that is not writable, Kyklos falls back to ~/.kyklos/workspaces (see docs/configuration.md).
+  workspace_root: "/tmp/kyklos-workspaces"
+
+  # Path to the Python venv that contains the kyklos SDK + step deps.
+  # If empty, kyklos looks for `python3` on PATH.
+  python_venv: ""           # e.g. "/home/you/.kyklos/venv"
+
+# Per-repo webhook secrets. Used to validate GitHub/GitLab push events.
+# repos:
+#   - name: my-agent
+#     github_secret_env: GITHUB_WEBHOOK_SECRET
+#     gitlab_token_env:  GITLAB_WEBHOOK_TOKEN

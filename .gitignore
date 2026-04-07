@@ -1,0 +1,40 @@
+# Build outputs
+/bin/
+*.exe
+*.test
+*.out
+
+# Local env and secrets
+.env
+.env.*
+!.env.example
+
+# User-specific server config (keep example committed)
+kyklos-server.yaml
+
+# SQLite / local data (optional local runs)
+*.db
+
+# Demo server scratch (generated config, workspaces)
+.demo-screenshots/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Coverage
+coverage.out
+coverage.html
+
+# VitePress docs site
+website/node_modules/
+website/.vitepress/cache/
+website/.vitepress/dist/

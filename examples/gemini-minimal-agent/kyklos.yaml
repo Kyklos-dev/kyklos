@@ -1,0 +1,80 @@
+# Gemini + common Kyklos features: lint, snapshot, run-dataset, semantic-similarity (from:),
+# cost/latency checks, and stage-level pass_if gates.
+# Requires GOOGLE_API_KEY on the Kyklos host (see README).
+version: "1.0"
+name: gemini-minimal-demo
+
+eval_bundle:
+  id: gemini-minimal-v1
+  prompt: ./prompt.md
+  dataset: ./data/hello.jsonl
+
+agent:
+  model: gemini-2.0-flash
+  prompt: ./prompt.md
+  temperature: 0.2
+  max_tokens: 256
+  runner:
+    type: gemini
+
+env:
+  GOOGLE_API_KEY: $GOOGLE_API_KEY
+
+triggers:
+  - on: manual
+
+# repository:
+#   url: https://github.com/YOUR_USER/YOUR_REPO.git
+#   branch: main
+
+pipeline:
+  # ── Validate agent YAML semantics before any API spend ───────────────
+  - name: build
+    steps:
+      - uses: kyklos/lint
+      - uses: kyklos/snapshot
+
+  # ── Run dataset, then score outputs vs expected substrings ───────────
+  - name: test
+    steps:
+      - uses: kyklos/run-dataset
+        name: ds
+        with:
+          dataset: ./data/hello.jsonl
+          concurrency: 2
+
+      - uses: kyklos/semantic-similarity
+        name: sim
+        with:
+          from: test.ds
+          dataset: ./data/hello.jsonl
+          threshold: 0.45
+
+    pass_if:
+      ds.success_rate: ">= 1.0"
+      sim.avg_similarity: ">= 0.45"
+
+    on_fail:
+      then: abort
+
+  # ── Budget / latency gates on the same run traces ────────────────────
+  - name: evaluate
+    steps:
+      - uses: kyklos/cost-check
+        name: cost
+        with:
+          from: test.ds
+          max_usd: 0.25
+
+      - uses: kyklos/latency-check
+        name: lat
+        with:
+          from: test.ds
+          max_p95_ms: 120000
+
+    pass_if:
+      cost.avg_cost_per_run: "<= 0.25"
+      lat.p95_ms: "<= 120000"
+
+    on_fail:
+      then: abort

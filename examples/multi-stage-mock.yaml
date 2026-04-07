@@ -1,0 +1,46 @@
+# Multi-stage mock pipeline — only kyklos/wait steps (no LLM, no datasets).
+# Good for testing the workflow UI, stage order, and durations.
+# Total wall time: 12 + 15 + 10 + 8 ≈ 45 seconds (adjust `seconds` as you like).
+#
+# Paste into Kyklos or register from repo root (prompt path resolves when validated on disk).
+#
+version: "1.0"
+name: multi-stage-mock
+
+agent:
+  model: claude-haiku-4-5-20251001
+  prompt: ./examples/long-running-test/prompt.md
+  runner:
+    type: anthropic
+
+triggers:
+  - on: manual
+
+pipeline:
+  - name: build
+    steps:
+      - uses: kyklos/wait
+        name: mock-compile
+        with:
+          seconds: 12
+
+  - name: test
+    steps:
+      - uses: kyklos/wait
+        name: mock-unit-tests
+        with:
+          seconds: 15
+
+  - name: evaluate
+    steps:
+      - uses: kyklos/wait
+        name: mock-eval-harness
+        with:
+          seconds: 10
+
+  - name: deploy
+    steps:
+      - uses: kyklos/wait
+        name: mock-rollout
+        with:
+          seconds: 8

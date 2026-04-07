@@ -1,0 +1,168 @@
+# =============================================================================
+# Production-style pipeline — "golden benchmark → policy gates → smoke → promote"
+# =============================================================================
+# This shows how Kyklos is meant to be used in anger:
+#
+#   • Git: clone your agent repo into the run workspace (single source of truth).
+#   • eval_bundle: immutable fingerprint of prompt + dataset + model for audits.
+#   • Stages: validate config → batch eval on a fixed dataset → safety/cost/latency
+#     gates → optional health probe (same agent, production-like check) → tag only if green.
+#   • pass_if: numeric / boolean gates on step scores (not shell exit codes alone).
+#   • on_fail: retry flaky benchmark stage once, then abort (no promote).
+#   • Triggers: manual + push to main + nightly schedule (comment/uncomment as needed).
+#   • max_goto: safety cap if you add goto-style flows later.
+#
+# SETUP
+#   1. Point `repository` at a repo that contains the paths below. Using a checkout
+#      of this kyklos repo works out of the box (`examples/...` paths exist).
+#   2. For private Git: GITHUB_TOKEN / KYKLOS_GIT_TOKEN on the server, or `token_env`.
+#   3. Set ANTHROPIC_API_KEY (or your provider) for steps that call models.
+#   4. Optional: SLACK_WEBHOOK on the server for Slack in addition to pipeline notify.
+#
+# TUNE for your org: thresholds, max_usd, max_p95_ms, concurrency, cron, tag name.
+# =============================================================================
+
+version: "1.0"
+name: agent-promotion-prod
+
+max_goto: 8
+
+repository:
+  url: https://github.com/YOUR_ORG/your-agent-service.git
+  branch: main
+  # token_env: GITHUB_TOKEN
+
+# Audit trail: what exact artifacts + model identity produced this run’s scores.
+eval_bundle:
+  id: prod-golden-2026q1
+  prompt: ./examples/long-running-test/prompt.md
+  dataset: ./examples/datasets/hello.jsonl
+  # rubric: ./eval/rubric.md      # add when you have a rubric file in the repo
+  # schema: ./eval/output.schema.json
+
+agent:
+  model: claude-sonnet-4-20250514
+  prompt: ./examples/long-running-test/prompt.md
+  temperature: 0.2
+  max_tokens: 4096
+  runner:
+    type: anthropic
+
+triggers:
+  - on: manual
+  - on: push
+    branch: main
+  - on: schedule
+    cron: "0 6 * * *" # 06:00 UTC daily — adjust TZ/cron to your SRE practice
+
+pipeline:
+  # ---------------------------------------------------------------------------
+  # 1) Fast validation — fail cheap before burning tokens on the full dataset
+  # ---------------------------------------------------------------------------
+  - name: validate
+    steps:
+      - uses: kyklos/lint
+        name: lint
+      - uses: kyklos/snapshot
+        name: snapshot
+
+    pass_if:
+      lint.passed: "== true"
+      snapshot.passed: "== true"
+
+    on_fail:
+      then: abort
+
+  # ---------------------------------------------------------------------------
+  # 2) Golden benchmark — regression surface for quality + similarity vs expectations
+  # ---------------------------------------------------------------------------
+  - name: benchmark
+    steps:
+      - uses: kyklos/run-dataset
+        name: golden-set
+        with:
+          dataset: ./examples/datasets/hello.jsonl
+          concurrency: 4
+          timeout_per_run: 180
+
+      - uses: kyklos/semantic-similarity
+        name: sim
+        with:
+          from: benchmark.golden-set
+          dataset: ./examples/datasets/hello.jsonl
+          threshold: 0.72
+
+      # Add kyklos/exact-match here when your dataset rows include expected_<field>
+      # (full-string match). hello.jsonl is written for similarity / contains checks.
+
+    pass_if:
+      golden-set.success_rate: ">= 0.88"
+      sim.avg_similarity: ">= 0.72"
+
+    on_fail:
+      retry:
+        max_attempts: 1
+        delay_seconds: 30
+      then: abort
+
+  # ---------------------------------------------------------------------------
+  # 3) Policy — safety + budget + latency SLOs on the same traced outputs
+  # ---------------------------------------------------------------------------
+  - name: policy
+    steps:
+      - uses: kyklos/safety-check
+        name: safety
+        with:
+          from: benchmark.golden-set
+
+      - uses: kyklos/cost-check
+        name: cost
+        with:
+          from: benchmark.golden-set
+          max_usd: 0.35
+
+      - uses: kyklos/latency-check
+        name: latency
+        with:
+          from: benchmark.golden-set
+          max_p95_ms: 12000
+
+    pass_if:
+      safety.passed: "== true"
+      cost.avg_cost_per_run: "<= 0.35"
+      latency.p95_ms: "<= 12000"
+
+    on_fail:
+      then: abort
+
+  # ---------------------------------------------------------------------------
+  # 4) Smoke — one live probe through the same agent (post-policy gate)
+  #     Swap for kyklos/canary or a ./scripts/deploy.sh step when you wire real infra.
+  # ---------------------------------------------------------------------------
+  - name: smoke
+    steps:
+      - uses: kyklos/health-check
+        name: probe
+        with:
+          probe: "Summarize the reliability requirements in one sentence."
+          expected_contains: ""
+          timeout_ms: 15000
+
+    pass_if:
+      probe.healthy: "== 1"
+
+    on_fail:
+      then: abort
+
+  # ---------------------------------------------------------------------------
+  # 5) Promote — artifact / registry tag (extend with kyklos/push or deploy steps)
+  # ---------------------------------------------------------------------------
+  - name: promote
+    steps:
+      - uses: kyklos/tag
+        name: release-tag
+        with:
+          tag: "golden-passed"
+
+notify:
+  on: [passed, failed]

@@ -1,0 +1,2 @@
+{"id": "t1", "input": "Reply with exactly the word: pong", "expected_output_contains": "pong"}
+{"id": "t2", "input": "What is 3 plus 5? Reply with one number only.", "expected_output_contains": "8"}

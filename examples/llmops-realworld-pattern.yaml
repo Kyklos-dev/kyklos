@@ -1,0 +1,98 @@
+# Real-world pattern: "golden set → quality gates → promote" (often run manually or
+# glued together in GitHub Actions with Deepeval / EvalGate–style tools + artifacts).
+# This Kyklos pipeline encodes the same *shape* natively: dataset run, scores, pass_if,
+# then register / optional deploy.
+#
+# What teams typically do by hand or in CI:
+#   1) Validate agent + config
+#   2) Run a fixed JSONL benchmark (regression on outputs / latency / cost)
+#   3) Block promotion if similarity / safety / budget fails
+#   4) Tag or deploy only if green
+#
+# Swap paths, thresholds, and models for your repo. Requires API access for agent steps.
+#
+version: "1.0"
+name: llmops-golden-gate
+
+agent:
+  model: claude-haiku-4-5-20251001
+  prompt: ./prompts/system.md
+  runner:
+    type: anthropic
+
+triggers:
+  - on: manual
+  # - on: push
+  #   branch: main
+
+pipeline:
+  # ── 1) Fast checks (same role as "lint + lockfile" in app CI) ───────────────
+  - name: build
+    steps:
+      - uses: kyklos/lint
+        name: lint
+      - uses: kyklos/snapshot
+        name: snapshot
+
+  # ── 2) Regression on a golden dataset (batch agent runs) ─────────────────
+  - name: test
+    steps:
+      - uses: kyklos/run-dataset
+        name: golden-set
+        with:
+          dataset: ./datasets/hello.jsonl
+          concurrency: 4
+          timeout_per_run: 120
+
+      - uses: kyklos/semantic-similarity
+        name: sim
+        with:
+          from: test.golden-set
+          threshold: 0.72
+
+    pass_if:
+      golden-set.success_rate: ">= 0.85"
+      sim.avg_similarity: ">= 0.72"
+
+    on_fail:
+      retry:
+        max_attempts: 1
+        delay_seconds: 5
+      then: abort
+
+  # ── 3) Policy + economics (NIST / ISO-style "controls" many teams track in spreadsheets) ─
+  - name: evaluate
+    steps:
+      - uses: kyklos/safety-check
+        name: safety
+        with:
+          from: test.golden-set
+
+      - uses: kyklos/cost-check
+        name: cost
+        with:
+          from: test.golden-set
+          max_usd: 0.25
+
+      - uses: kyklos/latency-check
+        name: latency
+        with:
+          from: test.golden-set
+          p95_ms: 8000
+
+    pass_if:
+      safety.passed: "== true"
+
+    on_fail:
+      then: abort
+
+  # ── 4) Promotion (artifact tag — swap for ./scripts/deploy.py if needed) ──
+  - name: register
+    steps:
+      - uses: kyklos/tag
+        name: tag
+        with:
+          tag: "eval-passed"
+
+notify:
+  on: [passed, failed]
