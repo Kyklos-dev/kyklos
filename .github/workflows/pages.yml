@@ -1,5 +1,8 @@
-# Build VitePress under website/ and deploy to GitHub Pages (project site:
-# https://<user>.github.io/<repo>/).
+# Build VitePress under website/ and push to branch `gh-pages` for GitHub Pages.
+# Uses branch publishing (not the GitHub Actions "Pages deployment" API) so it works
+# when deploy-pages returns 404 (Pages API not provisioned for the repo).
+#
+# Site URL (project page): https://<owner>.github.io/<repo>/
 name: Deploy docs (GitHub Pages)
 
 on:
@@ -11,16 +14,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,23 +33,11 @@ jobs:
       - name: Install and build
         working-directory: website
         env:
-          # Must match GitHub Pages path for this repository
           VITEPRESS_BASE: /${{ github.event.repository.name }}/
         run: npm ci && npm run build
-      - uses: actions/upload-pages-artifact@v3
+      - name: Push to gh-pages branch
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          path: website/.vitepress/dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    # Explicit OIDC + Pages permissions for deploy-pages (required for deployment token)
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: website/.vitepress/dist
+          force_orphan: true

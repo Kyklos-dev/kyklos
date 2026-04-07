@@ -34,21 +34,19 @@ Set project **Root Directory** to **`website`**. `vercel.json` runs `npm run bui
 
 ## GitHub Pages
 
-The workflow **`.github/workflows/pages.yml`** builds with `VITEPRESS_BASE=/<repo>/` and deploys via **GitHub Actions**.
+The workflow **`.github/workflows/pages.yml`** builds the site with `VITEPRESS_BASE=/<repo>/` and **pushes the result to the `gh-pages` branch** (branch-based publishing — avoids the separate “GitHub Actions” Pages deployment API that can return **404** if Pages isn’t provisioned that way).
 
-### One-time setup (required)
+### One-time setup
 
-1. Open **Settings → Pages** for the repository.
-2. Under **Build and deployment**, set **Source** to **GitHub Actions** (not “Deploy from a branch”). Save if prompted.
-3. Until this is done, the deploy step fails with **`HttpError: Not Found` / `Failed to create deployment (status: 404)`** — there is no Pages site for the API to attach to.
+1. **Settings → Actions → General → Workflow permissions**: set **Read and write permissions** for workflows (the job must be allowed to push to `gh-pages` with `GITHUB_TOKEN`).
+2. Run the workflow once (**Actions → Deploy docs (GitHub Pages) → Run workflow**) or push to **`main`** under `website/`.
+3. **Settings → Pages → Build and deployment**: set **Source** to **Deploy from a branch**, **Branch** = **`gh-pages`**, folder **`/ (root)`**, then Save.
 
-Then push to **`main`** (or **Actions → Deploy docs (GitHub Pages) → Run workflow**). The site URL is:
-
-**`https://<owner>.github.io/<repo>/`** (e.g. `https://kyklos-dev.github.io/kyklos/`).
+The site URL is **`https://<owner>.github.io/<repo>/`** (e.g. `https://kyklos-dev.github.io/kyklos/`).
 
 ### Private repositories
 
-On **GitHub Free**, **GitHub Pages does not serve private repos**. Use a **public** repo for `*.github.io` hosting, or host the built `website/.vitepress/dist` elsewhere (e.g. Vercel above).
+On **GitHub Free**, **GitHub Pages does not serve private repos**. Use a **public** repo, or deploy elsewhere (e.g. Vercel above).
 
 Local preview always uses **`/`** as base; no extra env needed for `npm run dev`.
 
