@@ -2,17 +2,20 @@
 # Install kyklos from GitHub Releases (Linux/macOS, amd64/arm64).
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/scripts/install.sh | sh
-# Or with a fork:
-#   REPO=myfork/kyklos curl -fsSL ... | sh
+#   curl -fsSL https://raw.githubusercontent.com/Kyklos-dev/kyklos/main/scripts/install.sh | sh
+#
+# If that URL 404s, clone the repo and run: sh scripts/install.sh
+#
+# Fork:
+#   REPO=your-org/kyklos curl -fsSL ... | sh
 #
 # Optional:
-#   VERSION=v0.1.0   # default: latest release
+#   VERSION=v0.1.0          # default: latest release
 #   PREFIX=~/.local/bin   # install directory (default: /usr/local/bin)
 
 set -e
 
-REPO="${REPO:-kyklos/kyklos}"
+REPO="${REPO:-Kyklos-dev/kyklos}"
 VERSION="${VERSION:-latest}"
 PREFIX="${PREFIX:-/usr/local/bin}"
 
@@ -34,8 +37,21 @@ case "$(uname -m)" in
     ;;
 esac
 
+fetch_latest_tag() {
+  _json=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest") || return 1
+  _tag=$(printf '%s' "$_json" | tr -d '\n' | sed -n 's/.*"tag_name"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+  if [ -z "$_tag" ]; then
+    return 1
+  fi
+  printf '%s\n' "$_tag"
+}
+
 if [ "$VERSION" = "latest" ]; then
-  TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')
+  if ! TAG=$(fetch_latest_tag); then
+    echo "install.sh: could not read latest release from https://api.github.com/repos/${REPO}/releases/latest"
+    echo "  Set VERSION explicitly:  VERSION=v0.1.0 sh $0"
+    exit 1
+  fi
 else
   TAG="${VERSION}"
 fi
@@ -43,6 +59,17 @@ fi
 case "$TAG" in
   v*) ;;
   *) TAG="v${TAG}" ;;
+esac
+
+# Reject empty, bare "v", or API error bodies where tag never resolved
+case "$TAG" in
+  v?*) ;;
+  *)
+    echo "install.sh: could not resolve a release tag for https://github.com/${REPO}/releases"
+    echo "  (got '${TAG}'). Check REPO, network, and GitHub API rate limits."
+    echo "  Or set an explicit tag:  VERSION=v0.1.0 sh install.sh"
+    exit 1
+    ;;
 esac
 
 NAME="kyklos-${OS}-${ARCH}.tar.gz"

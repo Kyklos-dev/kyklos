@@ -1,16 +1,16 @@
 # Use a release
 
-These docs assume you run a **published binary** from [GitHub Releases](https://github.com/kyklos/kyklos/releases). You need the **`kyklos`** executable plus a **`steps/`** tree (built-in steps from the same release tag in the repo, or your own).
+These docs assume you run a **published binary** from [GitHub Releases](https://github.com/Kyklos-dev/kyklos/releases). You need the **`kyklos`** executable plus a **`steps/`** tree (built-in steps from the same release tag in the repo, or your own).
 
 ## 1. Download
 
 Pick the archive for your OS/arch (`kyklos-linux-amd64.tar.gz`, `kyklos-darwin-arm64.tar.gz`, etc.), or use the install script on Linux/macOS:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/kyklos/kyklos/main/scripts/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/Kyklos-dev/kyklos/main/scripts/install.sh | sh
 ```
 
-Optional: `PREFIX=$HOME/.local/bin`, `VERSION=v0.x.y`, `REPO=owner/repo` if you use a fork.
+Optional: `PREFIX=$HOME/.local/bin`, `VERSION=v0.x.y`, `REPO=owner/repo` if you use a fork. If the `curl` to `raw.githubusercontent.com` fails (404), clone the repo and run `sh scripts/install.sh`, or download **`kyklos-linux-*.tar.gz`** from Releases and extract `kyklos` manually.
 
 Windows: download **`kyklos-windows-amd64.zip`**, extract `kyklos.exe`.
 

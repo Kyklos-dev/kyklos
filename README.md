@@ -4,35 +4,63 @@
 
 ---
 
+## Use a release (recommended)
+
+**Most people should run Kyklos from a [GitHub Release](https://github.com/Kyklos-dev/kyklos/releases).** Those builds ship a single binary with the embedded dashboard already bundled—no need to compile anything.
+
+### Linux / macOS (amd64 or arm64)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Kyklos-dev/kyklos/main/scripts/install.sh | sh
+```
+
+Optional: `VERSION=v0.1.0` (default is latest), `PREFIX=$HOME/.local/bin`, or for a fork `REPO=your-org/kyklos` — see [`scripts/install.sh`](scripts/install.sh).
+
+If **`raw.githubusercontent.com` returns 404**, the script is not on `main` yet or you are offline—clone the repo and run `sh scripts/install.sh` from the root, or download **`kyklos-linux-*.tar.gz`** manually from [Releases](https://github.com/Kyklos-dev/kyklos/releases).
+
+### Windows
+
+Download **`kyklos-windows-amd64.zip`** from the [latest release](https://github.com/Kyklos-dev/kyklos/releases/latest), extract `kyklos.exe`, and run it from a terminal.
+
+### After install
+
+Follow **[Getting started](docs/getting-started.md)** for environment variables (e.g. `KYKLOS_STEPS_DIR`), the default database path, and a smoke test. Broader product docs live on the **[live documentation site](https://kyklos-mroa2pbl8-kyklos-devs-projects.vercel.app/)** (same content as [`website/`](website/)).
+
+---
+
 ## Documentation (live site)
 
 | | |
 |--|--|
-| **Browse online** | **[Live documentation (Vercel)](https://kyklos-mroa2pbl8-kyklos-devs-projects.vercel.app/)** — product docs: concepts, guides, pipelines, configuration, dashboard & API. |
+| **Browse online** | **[Live documentation (Vercel)](https://kyklos-mroa2pbl8-kyklos-devs-projects.vercel.app/)** — concepts, guides, pipelines, configuration, dashboard & API. |
 | **Repository** | **[github.com/Kyklos-dev/kyklos](https://github.com/Kyklos-dev/kyklos)** |
-| **Build / deploy** | Source: [`website/`](website/) — `cd website && npm ci && npm run build`. Host on **Vercel** with root **`website/`** (see [`website/README.md`](website/README.md)). |
+| **Docs site source** | [`website/`](website/) — `cd website && npm ci && npm run build`. Deploy on **Vercel** with root **`website/`** (see [`website/README.md`](website/README.md)). |
 
 ---
 
-## Documentation for users
+## Documentation in this repo
 
 | Doc | Audience |
 |-----|----------|
-| **[VitePress docs site](website/)** | Same content as the live site above; edit Markdown under `website/`, build locally, or deploy to Vercel. |
-| **[User guide](docs/user-guide.md)** | Full narrative guide in-repo (Markdown). |
-| [Getting started](docs/getting-started.md) | Commands, build, database, smoke test |
+| **[VitePress docs site](website/)** | Same content as the live site; edit Markdown under `website/`. |
+| **[User guide](docs/user-guide.md)** | Full narrative guide. |
+| [Getting started](docs/getting-started.md) | Commands, database, smoke test **after you install a release** |
 | [Configuration](docs/configuration.md) | Server YAML, SQLite |
 | [Dashboard](docs/dashboard.md) | Web UI and local dev with Vite |
 
 ---
 
-## Quick start
+## Develop from source (contributors)
+
+**If you want to contribute** — fix bugs, change the server or UI, or run unreleased code — **clone the repository** and build locally. This path is for working on Kyklos itself, not required for normal use.
 
 ```bash
-# Optional: Python venv for steps (SDK + dependencies)
+git clone https://github.com/Kyklos-dev/kyklos.git
+cd kyklos
+
+# Optional: Python venv for pipeline steps (SDK + dependencies)
 make setup
 
-# Build the embedded UI, then run (or: make run if web/dist already exists)
 make build-ui
 make run
 ```
@@ -40,30 +68,17 @@ make run
 Open **http://127.0.0.1:8080** — the API and UI have **no authentication** (use a reverse proxy if you need it).
 
 ```bash
-# Production binary
+# Production-style local binary
 make build    # produces bin/kyklos
 ```
 
----
-
-## Install from GitHub Releases
-
-After [releases](https://github.com/kyklos/kyklos/releases) are published (see **Publishing** below), you can install a prebuilt binary on **Linux** or **macOS** (amd64/arm64):
-
-```bash
-# Replace OWNER/REPO if you use a fork (default: kyklos/kyklos)
-curl -fsSL https://raw.githubusercontent.com/kyklos/kyklos/main/scripts/install.sh | sh
-```
-
-Optional: `VERSION=v0.1.0` or `PREFIX=$HOME/.local/bin` — see `scripts/install.sh`.
-
-Windows: download `kyklos-windows-amd64.zip` from the release, extract `kyklos.exe`, and run it from a terminal.
+See [CONTRIBUTING.md](CONTRIBUTING.md) and the [contributing docs](website/contributing/) for pull requests and development expectations.
 
 ---
 
-## Publishing (maintainers)
+## Publishing releases (maintainers)
 
-1. Ensure `main` (or your default branch) passes CI.
+1. Ensure `main` passes CI.
 2. Create and push a version tag, e.g. `git tag v0.1.0 && git push origin v0.1.0`.
 3. The **Release** workflow builds the dashboard, cross-compiles `kyklos`, uploads `kyklos-<os>-<arch>.tar.gz` / `.zip` plus `checksums-sha256.txt`, and creates a GitHub Release with notes.
 
