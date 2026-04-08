@@ -22,7 +22,7 @@ func Health(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(healthResponse{
 		Status:  "ok",
 		Uptime:  time.Since(startTime).Round(time.Second).String(),
-		Version: "0.1.0",
+		Version: "0.1.1",
 		Go:      runtime.Version(),
 	})
 }

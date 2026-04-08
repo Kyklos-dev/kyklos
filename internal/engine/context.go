@@ -8,7 +8,7 @@ import (
 	"github.com/kyklos/kyklos/internal/models"
 )
 
-const kyklosVersion = "0.1.0"
+const kyklosVersion = "0.1.1"
 
 // KyklosContext is the JSON payload written to every step's stdin.
 // It mirrors the Python KyklosContext dataclass exactly.

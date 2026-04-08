@@ -14,7 +14,7 @@
 curl -fsSL https://raw.githubusercontent.com/Kyklos-dev/kyklos/main/scripts/install.sh | sh
 ```
 
-Optional: `VERSION=v0.1.0` (default is latest), `PREFIX=$HOME/.local/bin`, or for a fork `REPO=your-org/kyklos` — see [`scripts/install.sh`](scripts/install.sh).
+Optional: `VERSION=v0.1.1` (default is latest), `PREFIX=$HOME/.local/bin`, or for a fork `REPO=your-org/kyklos` — see [`scripts/install.sh`](scripts/install.sh).
 
 If **`raw.githubusercontent.com` returns 404**, the script is not on `main` yet or you are offline—clone the repo and run `sh scripts/install.sh` from the root, or download **`kyklos-linux-*.tar.gz`** manually from [Releases](https://github.com/Kyklos-dev/kyklos/releases).
 
@@ -79,7 +79,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and the [contributing docs](website/contr
 ## Publishing releases (maintainers)
 
 1. Ensure `main` passes CI.
-2. Create and push a version tag, e.g. `git tag v0.1.0 && git push origin v0.1.0`.
+2. Create and push a version tag, e.g. `git tag v0.1.1 && git push origin v0.1.1`.
 3. The **Release** workflow builds the dashboard, cross-compiles `kyklos`, uploads `kyklos-<os>-<arch>.tar.gz` / `.zip` plus `checksums-sha256.txt`, and creates a GitHub Release with notes.
 
 First-time setup: enable **Actions** on the repository and allow **Read and write** for `GITHUB_TOKEN` on workflow releases (default for `softprops/action-gh-release`).
