@@ -42,7 +42,10 @@ func newPipelineRouter(t *testing.T, st *store.SQLiteStore) *chi.Mux {
 	ph := handlers.NewPipelineHandler(
 		st,
 		func() { reloaded = true },
-		func(id string, req models.TriggerRequest) { triggered = true },
+		func(ctx context.Context, id string, req models.TriggerRequest) (string, error) {
+			triggered = true
+			return "mock-run-id", nil
+		},
 	)
 	_ = reloaded
 	_ = triggered
@@ -114,9 +117,10 @@ func TestTriggerRunDecodesBodyWhenContentLengthUnknown(t *testing.T) {
 	ph := handlers.NewPipelineHandler(
 		st,
 		func() {},
-		func(id string, req models.TriggerRequest) {
+		func(ctx context.Context, id string, req models.TriggerRequest) (string, error) {
 			capturedID = id
 			captured = req
+			return "mock-run-id", nil
 		},
 	)
 	r := chi.NewRouter()

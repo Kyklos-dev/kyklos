@@ -52,11 +52,16 @@ export function PipelineDetailPage() {
         sha: opts.sha,
       }),
     onMutate: () => setTriggerError(null),
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["runs", id] });
+      qc.invalidateQueries({ queryKey: ["runs", id, "enriched"] });
       qc.invalidateQueries({ queryKey: ["pipelines"] });
+      qc.invalidateQueries({ queryKey: ["runs", "global"] });
       setTriggerError(null);
       setRunModalOpen(false);
+      if (data?.run_id) {
+        navigate(`/runs/${data.run_id}`);
+      }
     },
     onError: (e: Error) => setTriggerError(e.message),
   });

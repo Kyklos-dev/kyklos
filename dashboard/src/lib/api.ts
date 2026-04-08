@@ -89,7 +89,7 @@ export const api = {
       id: string,
       opts?: { sha?: string; branch?: string; workspace_path?: string }
     ) =>
-      request<{ status: string; pipeline_id: string }>(`/pipelines/${id}/runs`, {
+      request<{ status: string; pipeline_id: string; run_id: string }>(`/pipelines/${id}/runs`, {
         method: "POST",
         body: JSON.stringify(opts ?? {}),
       }),
@@ -126,7 +126,7 @@ export const api = {
     cancel: (id: string) =>
       request<{ status: string; run_id: string }>(`/runs/${id}/cancel`, { method: "POST" }),
     rerun: (id: string) =>
-      request<{ status: string; pipeline_id: string }>(`/runs/${id}/rerun`, {
+      request<{ status: string; pipeline_id: string; run_id: string }>(`/runs/${id}/rerun`, {
         method: "POST",
       }),
   },

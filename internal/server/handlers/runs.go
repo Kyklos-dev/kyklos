@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -20,10 +21,10 @@ type RunHandler struct {
 	store        store.Store
 	artifactRoot string
 	// trigger dispatches a manual pipeline run (nil if scheduler not wired).
-	trigger func(pipelineID string, req models.TriggerRequest)
+	trigger func(context.Context, string, models.TriggerRequest) (string, error)
 }
 
-func NewRunHandler(st store.Store, artifactRoot string, trigger func(string, models.TriggerRequest)) *RunHandler {
+func NewRunHandler(st store.Store, artifactRoot string, trigger func(context.Context, string, models.TriggerRequest) (string, error)) *RunHandler {
 	return &RunHandler{store: st, artifactRoot: filepath.Clean(artifactRoot), trigger: trigger}
 }
 
@@ -81,10 +82,15 @@ func (h *RunHandler) Rerun(w http.ResponseWriter, r *http.Request) {
 		GitSHA:    run.GitSHA,
 		GitBranch: run.GitBranch,
 	}
-	h.trigger(run.PipelineID, req)
+	runID, err := h.trigger(r.Context(), run.PipelineID, req)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "rerun: "+err.Error())
+		return
+	}
 	respondJSON(w, http.StatusAccepted, map[string]string{
-		"status":      "triggered",
+		"status":       "triggered",
 		"pipeline_id": run.PipelineID,
+		"run_id":       runID,
 	})
 }
 

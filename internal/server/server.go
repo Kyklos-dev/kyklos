@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -120,11 +121,12 @@ func (s *Server) schedulerReload() {
 	}
 }
 
-// schedulerTrigger dispatches a manual run.
-func (s *Server) schedulerTrigger(pipelineID string, req models.TriggerRequest) {
-	if s.scheduler != nil {
-		s.scheduler.TriggerManual(context.Background(), pipelineID, req)
+// schedulerTrigger dispatches a manual run and returns the new run id when preparation succeeds.
+func (s *Server) schedulerTrigger(ctx context.Context, pipelineID string, req models.TriggerRequest) (string, error) {
+	if s.scheduler == nil {
+		return "", errors.New("scheduler not available")
 	}
+	return s.scheduler.TriggerManual(ctx, pipelineID, req)
 }
 
 // Start begins listening. Blocks until ctx is cancelled.

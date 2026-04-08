@@ -79,7 +79,7 @@ export function StepsCatalogPage() {
                     key={s.path}
                     className="rounded-lg border border-surface-3/60 bg-surface-1/40 px-4 py-3 text-xs"
                   >
-                    <div className="font-mono text-accent mb-1">{s.path}</div>
+                    <div className="font-mono text-accent mb-1 select-all">{s.path}</div>
                     {s.description && (
                       <p className="text-muted leading-relaxed mb-2">{s.description}</p>
                     )}

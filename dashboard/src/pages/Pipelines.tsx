@@ -493,6 +493,7 @@ function PipelineCard({
   deleteLocked: boolean;
 }) {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [runErr, setRunErr] = useState<string | null>(null);
   const [runModalOpen, setRunModalOpen] = useState(false);
   const { data: runs = [] } = useQuery({
@@ -508,10 +509,15 @@ function PipelineCard({
         sha: opts.sha,
       }),
     onMutate: () => setRunErr(null),
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["runs", pipeline.id] });
+      qc.invalidateQueries({ queryKey: ["runs", pipeline.id, "enriched"] });
       qc.invalidateQueries({ queryKey: ["pipelines"] });
+      qc.invalidateQueries({ queryKey: ["runs", "global"] });
       setRunModalOpen(false);
+      if (data?.run_id) {
+        navigate(`/runs/${data.run_id}`);
+      }
     },
     onError: (e: Error) => setRunErr(e.message),
   });
@@ -559,19 +565,18 @@ function PipelineCard({
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
-          {/* Sparkline of last 10 runs — each bar links to its run */}
-          <div className="flex items-end gap-0.5 h-6">
-            {recentRuns.slice().reverse().map((r, i) => (
+          {/* Last 10 runs: uniform bars (color = status), oldest → newest left → right */}
+          <div className="flex items-end gap-0.5 h-6" title="Recent runs (newest on the right)">
+            {recentRuns.slice().reverse().map((r) => (
               <Link
-                key={i}
+                key={r.id}
                 to={`/runs/${r.id}`}
-                className={`w-1.5 rounded-sm block hover:opacity-70 transition-opacity ${
+                className={`w-1.5 h-5 shrink-0 rounded-sm block hover:opacity-80 transition-opacity ${
                   r.status === "passed" ? "bg-success" :
                   r.status === "failed" ? "bg-danger" :
                   r.status === "running" ? "bg-accent animate-pulse" :
                   "bg-surface-3"
                 }`}
-                style={{ height: `${Math.max(30, Math.min(100, 50 + i * 5))}%` }}
                 title={`${r.status} — ${r.trigger}`}
               />
             ))}

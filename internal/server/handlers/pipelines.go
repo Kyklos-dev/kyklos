@@ -25,13 +25,13 @@ type PipelineHandler struct {
 // schedulerFacade adapts engine.Scheduler to avoid a circular import.
 type schedulerFacade struct {
 	reload  func()
-	trigger func(pipelineID string, req models.TriggerRequest)
+	trigger func(context.Context, string, models.TriggerRequest) (string, error)
 }
 
 // NewPipelineHandler creates a PipelineHandler.
 // reloadFn is called after any pipeline mutation so the scheduler picks up changes.
 // triggerFn dispatches a manual run (can be nil if manual trigger is not needed here).
-func NewPipelineHandler(st store.Store, reloadFn func(), triggerFn func(string, models.TriggerRequest)) *PipelineHandler {
+func NewPipelineHandler(st store.Store, reloadFn func(), triggerFn func(context.Context, string, models.TriggerRequest) (string, error)) *PipelineHandler {
 	return &PipelineHandler{
 		store: st,
 		scheduler: &schedulerFacade{
@@ -316,8 +316,16 @@ func (h *PipelineHandler) TriggerRun(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusServiceUnavailable, "manual runs not available (scheduler not wired)")
 		return
 	}
-	h.scheduler.trigger(id, req)
-	respondJSON(w, http.StatusAccepted, map[string]string{"status": "triggered", "pipeline_id": id})
+	runID, err := h.scheduler.trigger(r.Context(), id, req)
+	if err != nil {
+		respondError(w, http.StatusInternalServerError, "trigger run: "+err.Error())
+		return
+	}
+	respondJSON(w, http.StatusAccepted, map[string]string{
+		"status":       "triggered",
+		"pipeline_id": id,
+		"run_id":       runID,
+	})
 }
 
 // ListRuns handles GET /api/v1/pipelines/{pipelineID}/runs

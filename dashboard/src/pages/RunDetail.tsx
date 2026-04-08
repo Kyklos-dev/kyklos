@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { ArtifactTree } from "../components/ArtifactTree";
@@ -11,6 +11,7 @@ import type { StageResult } from "../lib/types";
 
 export function RunDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const qc = useQueryClient();
 
   const { data, isLoading, isError, error } = useQuery({
@@ -52,10 +53,14 @@ export function RunDetailPage() {
 
   const rerunMut = useMutation({
     mutationFn: () => api.runs.rerun(id!),
-    onSuccess: () => {
+    onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["run", id] });
       qc.invalidateQueries({ queryKey: ["runs"] });
+      qc.invalidateQueries({ queryKey: ["runs", "global"] });
       qc.invalidateQueries({ queryKey: ["pipelines"] });
+      if (data?.run_id) {
+        navigate(`/runs/${data.run_id}`);
+      }
     },
   });
 
@@ -112,7 +117,9 @@ export function RunDetailPage() {
       <div className="ky-breadcrumb text-xs text-muted mb-5 flex items-center flex-wrap gap-x-2 gap-y-1">
         <Link to="/">Pipelines</Link>
         <span className="text-surface-3">/</span>
-        <Link to={`/pipelines/${pipelineId}`}>{pipelineId.slice(0, 8)}</Link>
+        <Link to={`/pipelines/${pipelineId}`}>
+          {pipeline?.name?.trim() ? pipeline.name : pipelineId.slice(0, 8)}
+        </Link>
         <span className="text-surface-3">/</span>
         <span className="text-gray-900 font-medium">run {run.id.slice(0, 8)}</span>
       </div>
@@ -295,7 +302,12 @@ export function RunDetailPage() {
 
 function fmtRelative(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
-  const s = Math.floor(diff / 1000);
+  const s = Math.floor(Math.abs(diff) / 1000);
+  if (diff < 0) {
+    if (s < 60) return `in ${s}s`;
+    if (s < 3600) return `in ${Math.floor(s / 60)}m`;
+    return "in the future";
+  }
   if (s < 60) return `${s}s ago`;
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;

@@ -54,27 +54,33 @@ func New(
 	}
 }
 
-// RunPipeline is the public entry point called by the scheduler and webhook handlers.
-// It prepares the workspace, creates a run record, executes all stages, and stores results.
-func (e *Engine) RunPipeline(ctx context.Context, pipelineID string, req models.TriggerRequest) error {
-	// Load pipeline definition from store
-	pipeline, err := e.store.GetPipeline(ctx, pipelineID)
+// runPipelineSetup loads the pipeline, prepares the workspace, parses config, and creates the run record.
+// On success the caller must eventually call ws.Cleanup() after execution (or on a separate goroutine).
+// On error after Prepare succeeds, ws is cleaned up before returning.
+func (e *Engine) runPipelineSetup(ctx context.Context, pipelineID string, req models.TriggerRequest) (
+	pipeline *models.Pipeline,
+	run *models.Run,
+	cfg *config.PipelineConfig,
+	ws *PrepareResult,
+	err error,
+) {
+	pipeline, err = e.store.GetPipeline(ctx, pipelineID)
 	if err != nil {
-		return fmt.Errorf("get pipeline %q: %w", pipelineID, err)
+		return nil, nil, nil, nil, fmt.Errorf("get pipeline %q: %w", pipelineID, err)
 	}
 
 	prep := pipeline
 	if wid := strings.TrimSpace(pipeline.WorkspaceID); wid != "" {
 		dws, err := e.store.GetWorkspace(ctx, wid)
 		if err != nil {
-			return fmt.Errorf("get workspace %q: %w", wid, err)
+			return nil, nil, nil, nil, fmt.Errorf("get workspace %q: %w", wid, err)
 		}
 		url := strings.TrimSpace(dws.RepoURL)
 		if url == "" {
-			return fmt.Errorf("workspace %q has empty repo_url", dws.Name)
+			return nil, nil, nil, nil, fmt.Errorf("workspace %q has empty repo_url", dws.Name)
 		}
 		p := *pipeline
-		cfg := pipeline.Config
+		pcfg := pipeline.Config
 		defBr := strings.TrimSpace(dws.DefaultBranch)
 		if defBr == "" {
 			defBr = "main"
@@ -83,31 +89,31 @@ func (e *Engine) RunPipeline(ctx context.Context, pipelineID string, req models.
 			URL:    url,
 			Branch: defBr,
 		}
-		if cfg.Repository != nil && strings.TrimSpace(cfg.Repository.TokenEnv) != "" {
-			repoCfg.TokenEnv = cfg.Repository.TokenEnv
+		if pcfg.Repository != nil && strings.TrimSpace(pcfg.Repository.TokenEnv) != "" {
+			repoCfg.TokenEnv = pcfg.Repository.TokenEnv
 		}
-		cfg.Repository = repoCfg
-		p.Config = cfg
+		pcfg.Repository = repoCfg
+		p.Config = pcfg
 		prep = &p
 		slog.Info("clone from dashboard workspace", "workspace_id", dws.ID, "repo_url", url, "default_branch", defBr)
 	}
 
-	// Prepare the workspace (git worktree or local override)
-	ws, err := e.wsMgr.Prepare(ctx, prep, req)
+	ws, err = e.wsMgr.Prepare(ctx, prep, req)
 	if err != nil {
-		return fmt.Errorf("prepare workspace: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("prepare workspace: %w", err)
 	}
-	defer ws.Cleanup()
 
-	// Parse kyklos.yaml from the workspace.
-	// If the file doesn't exist (e.g. UI-created pipeline with no git repo),
-	// fall back to the config already stored in the database.
-	var cfg *config.PipelineConfig
+	cleanupOnErr := func() {
+		ws.Cleanup()
+	}
+
+	var resolvedBundle *evalbundle.Resolved
 	yamlPath := filepath.Join(ws.Path, pipeline.YAMLPath)
 	if _, statErr := os.Stat(yamlPath); statErr == nil {
 		cfg, err = ParsePipelineFile(yamlPath, ws.Path)
 		if err != nil {
-			return fmt.Errorf("parse pipeline yaml: %w", err)
+			cleanupOnErr()
+			return nil, nil, nil, nil, fmt.Errorf("parse pipeline yaml: %w", err)
 		}
 	} else {
 		stored := pipeline.Config
@@ -115,16 +121,15 @@ func (e *Engine) RunPipeline(ctx context.Context, pipelineID string, req models.
 		slog.Info("no yaml on disk, using stored config", "pipeline", pipeline.Name)
 	}
 
-	var resolvedBundle *evalbundle.Resolved
 	if cfg.EvalBundle != nil {
 		var berr error
 		resolvedBundle, berr = evalbundle.Resolve(ws.Path, cfg)
 		if berr != nil {
-			return fmt.Errorf("eval bundle: %w", berr)
+			cleanupOnErr()
+			return nil, nil, nil, nil, fmt.Errorf("eval bundle: %w", berr)
 		}
 	}
 
-	// Create and start run record (prefer resolved ref from git workspace over trigger hints)
 	gitSHA := ws.GitSHA
 	if gitSHA == "" {
 		gitSHA = req.GitSHA
@@ -133,7 +138,7 @@ func (e *Engine) RunPipeline(ctx context.Context, pipelineID string, req models.
 	if gitBranch == "" {
 		gitBranch = req.GitBranch
 	}
-	run := &models.Run{
+	run = &models.Run{
 		PipelineID: pipelineID,
 		Trigger:    req.Trigger,
 		GitSHA:     gitSHA,
@@ -144,10 +149,12 @@ func (e *Engine) RunPipeline(ctx context.Context, pipelineID string, req models.
 		run.EvalBundleFingerprint = resolvedBundle.Fingerprint
 	}
 	if err := e.store.CreateRun(ctx, run); err != nil {
-		return fmt.Errorf("create run: %w", err)
+		cleanupOnErr()
+		return nil, nil, nil, nil, fmt.Errorf("create run: %w", err)
 	}
 	if err := e.store.StartRun(ctx, run.ID); err != nil {
-		return fmt.Errorf("start run: %w", err)
+		cleanupOnErr()
+		return nil, nil, nil, nil, fmt.Errorf("start run: %w", err)
 	}
 
 	startLine := fmt.Sprintf("▶ Run started — pipeline %q", pipeline.Name)
@@ -176,16 +183,16 @@ func (e *Engine) RunPipeline(ctx context.Context, pipelineID string, req models.
 		"workspace", ws.Path,
 	)
 
-	// Execute all stages
-	execErr := e.execute(ctx, pipeline, run, cfg, ws.Path)
+	return pipeline, run, cfg, ws, nil
+}
 
+func (e *Engine) finalizeAfterExecute(ctx context.Context, pipeline *models.Pipeline, run *models.Run, execErr error) {
 	if execErr != nil {
 		_ = e.store.FinishRun(ctx, run.ID, models.RunStatusFailed, execErr.Error())
 		e.notifier.Notify(ctx, pipeline.Name, run, "failure")
 		slog.Info("pipeline run failed", "pipeline", pipeline.Name, "run_id", run.ID, "err", execErr)
-		return execErr
+		return
 	}
-
 	_ = e.store.AppendLog(ctx, &models.LogEntry{
 		RunID: run.ID,
 		Line:  "— Run finished successfully —",
@@ -193,7 +200,35 @@ func (e *Engine) RunPipeline(ctx context.Context, pipelineID string, req models.
 	_ = e.store.FinishRun(ctx, run.ID, models.RunStatusPassed, "")
 	e.notifier.Notify(ctx, pipeline.Name, run, "success")
 	slog.Info("pipeline run passed", "pipeline", pipeline.Name, "run_id", run.ID)
-	return nil
+}
+
+// StartManualRunAsync prepares the run synchronously (so the API can return run_id), then executes stages in the background.
+func (e *Engine) StartManualRunAsync(ctx context.Context, pipelineID string, req models.TriggerRequest) (runID string, err error) {
+	pipeline, run, cfg, ws, err := e.runPipelineSetup(ctx, pipelineID, req)
+	if err != nil {
+		return "", err
+	}
+	rid := run.ID
+	go func() {
+		defer ws.Cleanup()
+		bg := context.Background()
+		execErr := e.execute(bg, pipeline, run, cfg, ws.Path)
+		e.finalizeAfterExecute(bg, pipeline, run, execErr)
+	}()
+	return rid, nil
+}
+
+// RunPipeline is the public entry point called by the scheduler and webhook handlers.
+// It prepares the workspace, creates a run record, executes all stages, and stores results.
+func (e *Engine) RunPipeline(ctx context.Context, pipelineID string, req models.TriggerRequest) error {
+	pipeline, run, cfg, ws, err := e.runPipelineSetup(ctx, pipelineID, req)
+	if err != nil {
+		return err
+	}
+	defer ws.Cleanup()
+	execErr := e.execute(ctx, pipeline, run, cfg, ws.Path)
+	e.finalizeAfterExecute(ctx, pipeline, run, execErr)
+	return execErr
 }
 
 // execute runs the pipeline stages in order, handling retries, goto loops,

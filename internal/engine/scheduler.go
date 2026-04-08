@@ -62,17 +62,15 @@ func (s *Scheduler) Reload(ctx context.Context) {
 }
 
 // TriggerManual dispatches an immediate run for the given pipeline.
-// It runs asynchronously and does not block.
-func (s *Scheduler) TriggerManual(ctx context.Context, pipelineID string, req models.TriggerRequest) {
+// It prepares the run synchronously (workspace + DB row) so callers can obtain run_id,
+// then executes pipeline stages asynchronously.
+func (s *Scheduler) TriggerManual(ctx context.Context, pipelineID string, req models.TriggerRequest) (runID string, err error) {
 	req.Trigger = models.TriggerManual
-	go func() {
-		if err := s.engine.RunPipeline(context.Background(), pipelineID, req); err != nil {
-			slog.Error("manual trigger failed",
-				"pipeline_id", pipelineID,
-				"err", err,
-			)
-		}
-	}()
+	runID, err = s.engine.StartManualRunAsync(ctx, pipelineID, req)
+	if err != nil {
+		slog.Error("manual trigger failed", "pipeline_id", pipelineID, "err", err)
+	}
+	return runID, err
 }
 
 // TriggerPush dispatches a run caused by a git push event.

@@ -25,7 +25,13 @@ export function RunsExplorerPage() {
   const { data: runs = [], isLoading, isError, error } = useQuery<RunSummary[]>({
     queryKey: ["runs", "global", filters],
     queryFn: () => api.runs.listAll(filters),
-    refetchInterval: 8000,
+    refetchInterval: (q) => {
+      const rows = q.state.data as RunSummary[] | undefined;
+      if (rows?.some((r) => r.status === "running" || r.status === "pending")) {
+        return 2000;
+      }
+      return 8000;
+    },
   });
 
   return (

@@ -1,4 +1,19 @@
 import type { PipelineModel } from "./pipelineModel";
+import type { PredefinedStep } from "./predefinedSteps";
+
+/** Minimal YAML for one step as it appears under a stage’s `steps:` list. */
+export function formatStepExampleForKyklosYaml(meta: PredefinedStep): string {
+  const lines: string[] = [];
+  lines.push(`- uses: ${meta.uses}`);
+  const w = meta.defaultWith;
+  if (w && typeof w === "object" && !Array.isArray(w) && Object.keys(w).length > 0) {
+    lines.push(`  with:`);
+    for (const k of Object.keys(w)) {
+      lines.push(`    ${k}: ${yamlScalar(w[k])}`);
+    }
+  }
+  return lines.join("\n");
+}
 
 /** Escape a value for a single-line YAML value */
 function yamlScalar(v: unknown): string {
