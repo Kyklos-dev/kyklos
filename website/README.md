@@ -11,7 +11,7 @@ Product-focused static docs. **Recommended hosting: [Vercel](https://vercel.com)
 ## What this site is for
 
 - **Product**: what Kyklos is, features, concepts, pipelines, configuration, dashboard/API.
-- **Users of releases**: short **[Use a release](/getting-started)** page (binary + `KYKLOS_STEPS_DIR`).
+- **Users of releases**: **[Use a release](/getting-started)** (binary + `KYKLOS_STEPS_DIR`) and **[Changelog](/changelog)** for packaging/docs updates.
 - **Contributors**: **[Contributing](/contributing/)** — clone, `make build-ui`, `make run`, tests.
 
 ## Local preview

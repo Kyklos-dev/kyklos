@@ -6,7 +6,7 @@
 
 ## How do I install it?
 
-Use a **[GitHub Release](https://github.com/kyklos/kyklos/releases)** binary and follow **[Use a release](/getting-started)**. Building from Git clone is for **[contributors](/contributing/)**.
+Use a **[GitHub Release](https://github.com/Kyklos-dev/kyklos/releases)** binary and follow **[Use a release](/getting-started)**. Building from Git clone is for **[contributors](/contributing/)**.
 
 ## Does the API require authentication?
 
@@ -24,6 +24,12 @@ Use a **[GitHub Release](https://github.com/kyklos/kyklos/releases)** binary and
 
 **SQLite** by default (`~/.kyklos/kyklos.db`). Artifact **files** are stored under the server’s artifact directory (see logs on startup).
 
+## Why do I still see old pipelines after installing or upgrading?
+
+The **release binary** only replaces the **`kyklos` executable**. Your **database file** (pipelines, runs metadata, etc.) and **workspace directories** stay on disk. As long as the server opens the **same** SQLite path (default `~/.kyklos/kyklos.db`), the **dashboard shows the same history** as before.
+
+To start fresh: stop Kyklos, **back up** the DB if you need it, then use a **new** database path, e.g. `kyklos -db ~/.kyklos/kyklos-clean.db`, or remove the old file after backup. You can also change **`workspace_root`** in `kyklos-server.yaml` so new Git workspaces do not reuse old folders.
+
 ## Security reports
 
-See **[SECURITY.md](https://github.com/kyklos/kyklos/blob/main/SECURITY.md)** in the repository.
+See **[SECURITY.md](https://github.com/Kyklos-dev/kyklos/blob/main/SECURITY.md)** in the repository.

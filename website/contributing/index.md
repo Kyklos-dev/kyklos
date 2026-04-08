@@ -1,6 +1,6 @@
 # Contributing
 
-We welcome issues and pull requests on **[GitHub](https://github.com/kyklos/kyklos)**. For license and PR expectations, see the repo **[CONTRIBUTING.md](https://github.com/kyklos/kyklos/blob/main/CONTRIBUTING.md)** and **[SECURITY.md](https://github.com/kyklos/kyklos/blob/main/SECURITY.md)**.
+We welcome issues and pull requests on **[GitHub](https://github.com/Kyklos-dev/kyklos)**. For license and PR expectations, see the repo **[CONTRIBUTING.md](https://github.com/Kyklos-dev/kyklos/blob/main/CONTRIBUTING.md)** and **[SECURITY.md](https://github.com/Kyklos-dev/kyklos/blob/main/SECURITY.md)**.
 
 ## Run Kyklos locally (from source)
 
@@ -15,7 +15,7 @@ Use this when you are **changing the server, engine, dashboard, or steps** — n
 ### Clone and bootstrap
 
 ```bash
-git clone https://github.com/kyklos/kyklos.git
+git clone https://github.com/Kyklos-dev/kyklos.git
 cd kyklos
 make setup          # optional: Python venv + SDK (see repo Makefile)
 ```
