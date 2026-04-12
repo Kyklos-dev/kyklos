@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
+import { defaultPipelineModel } from "../lib/pipelineModel";
+import { serializePipelineToYaml } from "../lib/serializePipelineYaml";
 import { StatusBadge } from "../components/StatusBadge";
 import { PipelineBuilder } from "../components/PipelineBuilder";
 import { PipelineListSkeleton } from "../components/Skeleton";
@@ -26,7 +28,9 @@ export function PipelinesPage() {
 
   const [showNew, setShowNew] = useState(false);
   const [createTab, setCreateTab] = useState<"visual" | "yaml">("visual");
-  const [builderYaml, setBuilderYaml] = useState("");
+  const [builderYaml, setBuilderYaml] = useState(() =>
+    serializePipelineToYaml(defaultPipelineModel())
+  );
   const [manualYaml, setManualYaml] = useState("");
   const [builderKey, setBuilderKey] = useState(0);
   const [repoName, setRepoName] = useState("");
@@ -113,7 +117,7 @@ export function PipelinesPage() {
     onSuccess: (pipeline) => {
       qc.invalidateQueries({ queryKey: ["pipelines"] });
       setShowNew(false);
-      setBuilderYaml("");
+      setBuilderYaml(serializePipelineToYaml(defaultPipelineModel()));
       setManualYaml("");
       setCreateTab("visual");
       setCreateMode("freestyle");

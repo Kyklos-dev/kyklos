@@ -43,6 +43,7 @@ Follow **[Getting started](docs/getting-started.md)** for environment variables 
 | Doc | Audience |
 |-----|----------|
 | **[VitePress docs site](website/)** | Same content as the live site; edit Markdown under `website/`. |
+| **[Built-in steps](website/reference/steps/)** | Every `kyklos/...` step: options, scores, env vars (mirrors dashboard **Docs** links). |
 | **[User guide](docs/user-guide.md)** | Full narrative guide. |
 | [Getting started](docs/getting-started.md) | Commands, database, smoke test **after you install a release** |
 | [Configuration](docs/configuration.md) | Server YAML, SQLite |

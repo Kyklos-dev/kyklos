@@ -1,8 +1,6 @@
 """
-kyklos/semantic-similarity — embedding-based output scoring.
-
-Uses the Anthropic embeddings API when available, falls back to a
-simple token-overlap cosine similarity for environments without it.
+kyklos/semantic-similarity — scores outputs vs dataset ``expected_output_contains`` using
+DeepEval OpenAI embedding models and cosine similarity, with a deterministic token fallback.
 """
 
 from __future__ import annotations
@@ -25,6 +23,7 @@ def run(ctx: KyklosContext) -> KyklosResult:
 
     threshold = float(cfg.get("threshold", 0.85))
     slice_field = cfg.get("slice_field", "") or ""
+    method = str(cfg.get("method", "auto")).lower().strip()
 
     outputs = _resolve_outputs(ctx, cfg.get("from", "run-dataset"))
     if not outputs:
@@ -35,30 +34,17 @@ def run(ctx: KyklosContext) -> KyklosResult:
 
     cases = {c.get("id", str(i)): c for i, c in enumerate(read_jsonl(dataset_path))}
 
-    similarities: list[float] = []
-    below_threshold: list[dict] = []
-    slice_sims: dict[str, list[float]] = {}
-
+    rows: list[tuple[str, str, str, dict]] = []
     for output in outputs:
         case_id = output.get("_case_id", output.get("id", ""))
         case = cases.get(case_id)
         if not case or "expected_output_contains" not in case:
             continue
-
         expected = case["expected_output_contains"]
         actual = output.get("response", "")
+        rows.append((case_id, str(actual), str(expected), case))
 
-        sim = _similarity(actual, expected)
-        similarities.append(sim)
-        if sim < threshold:
-            below_threshold.append({"id": case_id, "similarity": sim, "expected": expected})
-
-        if slice_field:
-            raw = case.get(slice_field)
-            sk = slice_score_key(raw if raw is not None else "unknown")
-            slice_sims.setdefault(sk, []).append(sim)
-
-    if not similarities:
+    if not rows:
         return KyklosResult(
             scores={"avg_similarity": 1.0, "pass_rate": 1.0},
             passed=True,
@@ -67,20 +53,68 @@ def run(ctx: KyklosContext) -> KyklosResult:
             logs=["No similarity expectations — skipped"],
         )
 
-    avg_sim = sum(similarities) / len(similarities)
-    pass_rate = sum(1 for s in similarities if s >= threshold) / len(similarities)
+    want_embed = method not in ("token", "fallback", "offline")
+    embedder = _try_build_embedder(cfg) if want_embed else None
+    fallback_note: str | None = None
+
+    sims: list[float] = []
+    modes: list[str] = []
+
+    if embedder is not None:
+        try:
+            from deepeval.utils import cosine_similarity
+
+            flat: list[str] = []
+            for _cid, actual, expected, _case in rows:
+                flat.extend([actual, expected])
+            vectors = embedder.embed_texts(flat)
+            for i, (case_id, _a, _e, _case) in enumerate(rows):
+                va = vectors[2 * i]
+                vb = vectors[2 * i + 1]
+                sim = float(cosine_similarity(va, vb))
+                sims.append(max(0.0, min(1.0, sim)))
+                modes.append("embedding")
+        except Exception as e:
+            if method in ("embedding", "embed", "openai"):
+                return _error(f"embedding similarity failed: {e}")
+            fallback_note = str(e)
+            sims, modes = _all_token_similarities(rows)
+
+    else:
+        if method in ("embedding", "embed", "openai"):
+            return _error(
+                "method=embedding but OpenAI embedding model could not be created "
+                "(install deepeval, set OPENAI_API_KEY, or use method=auto|token)"
+            )
+        sims, modes = _all_token_similarities(rows)
+
+    below_threshold: list[dict] = []
+    slice_sims: dict[str, list[float]] = {}
+
+    for (case_id, _actual, expected, case), sim in zip(rows, sims):
+        if sim < threshold:
+            below_threshold.append(
+                {"id": case_id, "similarity": sim, "expected": expected}
+            )
+        if slice_field:
+            raw = case.get(slice_field)
+            sk = slice_score_key(raw if raw is not None else "unknown")
+            slice_sims.setdefault(sk, []).append(sim)
+
+    avg_sim = sum(sims) / len(sims)
+    pass_rate = sum(1 for s in sims if s >= threshold) / len(sims)
 
     scores: dict[str, float] = {
         "avg_similarity": avg_sim,
         "pass_rate": pass_rate,
     }
     slice_meta: dict[str, dict[str, float | int]] = {}
-    for sk, sims in slice_sims.items():
-        if not sims:
+    for sk, slist in slice_sims.items():
+        if not slist:
             continue
-        sa = sum(sims) / len(sims)
+        sa = sum(slist) / len(slist)
         scores[sk] = sa
-        slice_meta[sk] = {"avg_similarity": sa, "n": len(sims)}
+        slice_meta[sk] = {"avg_similarity": sa, "n": len(slist)}
 
     print(f"Semantic similarity — avg: {avg_sim:.3f}, pass rate: {pass_rate:.2%}")
     if slice_field:
@@ -88,9 +122,16 @@ def run(ctx: KyklosContext) -> KyklosResult:
         if parts:
             print(f"  slices ({slice_field}): " + ", ".join(parts))
 
-    logs = [f"avg_similarity={avg_sim:.3f} pass_rate={pass_rate:.2%}"]
+    mode_used = modes[0] if modes and len(set(modes)) == 1 else "mixed"
+    logs = [
+        f"avg_similarity={avg_sim:.3f} pass_rate={pass_rate:.2%} method={mode_used}",
+    ]
+    if fallback_note:
+        logs.append(f"embedding failed, used token fallback: {fallback_note[:200]}")
     if slice_field:
-        logs.append(f"slice_field={slice_field!r} — gate on step.slice_<name> for subgroup avg_similarity")
+        logs.append(
+            f"slice_field={slice_field!r} — gate on step.slice_<name> for subgroup avg_similarity"
+        )
 
     return KyklosResult(
         scores=scores,
@@ -102,14 +143,39 @@ def run(ctx: KyklosContext) -> KyklosResult:
             "threshold": threshold,
             "slices": slice_meta,
             "slice_field": slice_field or None,
+            "similarity_backend": "deepeval",
+            "similarity_method": mode_used,
+            "embedding_fallback": fallback_note,
         },
         artifacts=[],
         logs=logs,
     )
 
 
-def _similarity(text1: str, text2: str) -> float:
-    """Token-overlap cosine similarity (fallback when no embedding API)."""
+def _all_token_similarities(rows: list[tuple[str, str, str, dict]]) -> tuple[list[float], list[str]]:
+    sims = [_token_similarity(a, e) for _cid, a, e, _c in rows]
+    modes = ["token"] * len(sims)
+    return sims, modes
+
+
+def _try_build_embedder(cfg: dict):
+    try:
+        from deepeval.models.embedding_models.openai_embedding_model import (
+            OpenAIEmbeddingModel,
+        )
+    except ImportError:
+        return None
+
+    model_name = cfg.get("embedding_model") or "text-embedding-3-small"
+    try:
+        return OpenAIEmbeddingModel(model=model_name)
+    except Exception:
+        return None
+
+
+def _token_similarity(text1: str, text2: str) -> float:
+    """Token-overlap cosine (no API calls)."""
+
     def tokens(t: str) -> dict[str, int]:
         counts: dict[str, int] = {}
         for word in t.lower().split():
@@ -142,6 +208,7 @@ def _error(msg: str) -> KyklosResult:
 def _resolve_outputs(ctx: KyklosContext, from_ref: str) -> list[dict]:
     if ctx.from_result and ctx.from_result.artifact:
         from kyklos.sdk import read_jsonl as _rj
+
         try:
             return _rj(ctx.from_result.artifact)
         except Exception:

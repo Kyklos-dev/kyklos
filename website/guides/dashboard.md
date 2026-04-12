@@ -9,7 +9,7 @@ The **web UI** is the day-to-day surface for:
 - **Runs** — trigger manually (with branch selection when applicable), open **run detail**, stream **logs**, inspect **stages** and **scores**.
 - **Explorer** — browse **all runs**, filter, jump to a pipeline or run.
 - **Artifacts** — cross-run list of persisted files with download links.
-- **Steps catalog** — discover built-in **`uses:`** entries (when the server scans `KYKLOS_STEPS_DIR`).
+- **Steps catalog** — discover built-in **`uses:`** entries (when the server scans `KYKLOS_STEPS_DIR`). Each card can show a **YAML example**, **Copy**, **Pin**, and **Docs** (opens the matching section on the [Built-in steps](/reference/steps/) reference). The pipeline builder’s **Predefined steps** palette also has a **Documentation** link per step.
 
 There is **no login** in the product — treat the bind address and network as your security boundary, or front the server with a **reverse proxy** and **auth**.
 

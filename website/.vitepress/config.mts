@@ -32,6 +32,7 @@ export default defineConfig({
       },
       { text: "Concepts", link: "/concepts/architecture", activeMatch: "/concepts/" },
       { text: "Guides", link: "/guides/pipelines/", activeMatch: "/guides/" },
+      { text: "Steps", link: "/reference/steps/", activeMatch: "/reference/" },
       { text: "Use a release", link: "/getting-started" },
       { text: "Changelog", link: "/changelog" },
       { text: "Contributing", link: "/contributing/", activeMatch: "/contributing/" },
@@ -78,6 +79,22 @@ export default defineConfig({
         ],
       },
       {
+        text: "Reference",
+        items: [
+          {
+            text: "Built-in steps",
+            collapsed: false,
+            items: [
+              { text: "Overview", link: "/reference/steps/" },
+              { text: "Build steps", link: "/reference/steps/build" },
+              { text: "Test steps", link: "/reference/steps/test" },
+              { text: "Evaluate steps", link: "/reference/steps/evaluate" },
+              { text: "Register & deploy", link: "/reference/steps/register-and-deploy" },
+            ],
+          },
+        ],
+      },
+      {
         text: "Use a release",
         items: [{ text: "Download & run", link: "/getting-started" }],
       },
@@ -86,7 +103,7 @@ export default defineConfig({
         items: [{ text: "Run locally (from source)", link: "/contributing/" }],
       },
       {
-        text: "Reference",
+        text: "Meta",
         items: [
           { text: "Changelog", link: "/changelog" },
           { text: "FAQ", link: "/faq" },

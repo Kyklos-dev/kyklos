@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
 import { createPortal } from "react-dom";
 import {
   PREDEFINED_STEPS,
@@ -15,78 +15,53 @@ import {
   type PipelineModel,
 } from "../lib/pipelineModel";
 import {
-  formatStepExampleForKyklosYaml,
+  parseStepBlockFromPipelineYaml,
   serializePipelineToYaml,
+  serializeStepBlockForPipelineYaml,
 } from "../lib/serializePipelineYaml";
+import { docsUrl } from "../lib/docsBase";
 
 type PipelineBuilderProps = {
   onYamlChange: (yaml: string) => void;
 };
 
-/** Rough position before measuring the popover; refined in useLayoutEffect. */
-function computeInitialPopoverPosition(anchor: HTMLElement): {
-  top: number;
-  left: number;
-  width: number;
-} {
-  const r = anchor.getBoundingClientRect();
-  const gap = 8;
-  const width = Math.min(420, window.innerWidth - 16);
-  let left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
-  const estH = 300;
-  let top = r.bottom + gap;
-  if (top + estH > window.innerHeight - 8) {
-    top = Math.max(8, r.top - gap - estH);
-  }
-  return { top, left, width };
-}
+type StepEditorTarget = { stageId: string; stepId: string };
 
-function measurePalettePopoverPosition(
-  anchor: HTMLElement,
-  panel: HTMLElement
-): { top: number; left: number; width: number } {
-  const r = anchor.getBoundingClientRect();
-  const gap = 8;
-  const width = Math.min(420, window.innerWidth - 16);
-  let left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
-  const h = panel.offsetHeight;
-  let top = r.bottom + gap;
-  if (top + h > window.innerHeight - 8) {
-    top = Math.max(8, r.top - gap - h);
+const DND_STEP_MIME = "application/x-kyklos-step";
+
+function readStepDragPayload(e: DragEvent): { fromStageId: string; stepId: string } | null {
+  try {
+    const raw = e.dataTransfer.getData(DND_STEP_MIME);
+    if (!raw) return null;
+    const o = JSON.parse(raw) as { fromStageId?: string; stepId?: string };
+    if (o.fromStageId && o.stepId) return { fromStageId: o.fromStageId, stepId: o.stepId };
+  } catch {
+    /* ignore */
   }
-  return { top, left, width };
+  return null;
 }
 
 export function PipelineBuilder({ onYamlChange }: PipelineBuilderProps) {
   const [model, setModel] = useState<PipelineModel>(() => defaultPipelineModel());
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
-  const [expandedStep, setExpandedStep] = useState<string | null>(null);
-  /** After adding from palette: focus the new step’s with-editor once. */
-  const [editFocusStepId, setEditFocusStepId] = useState<string | null>(null);
-  const [previewMeta, setPreviewMeta] = useState<PredefinedStep | null>(null);
-  /** Target stage when adding from the palette modal (initialized from the highlighted stage). */
-  const [paletteTargetStageId, setPaletteTargetStageId] = useState<string | null>(null);
-  const [popoverPos, setPopoverPos] = useState<{
-    top: number;
-    left: number;
-    width: number;
-  } | null>(null);
-  const paletteAnchorRef = useRef<HTMLButtonElement | null>(null);
-  const stepPreviewPopoverRef = useRef<HTMLDivElement | null>(null);
-
-  const closeStepPreview = useCallback(() => {
-    setPreviewMeta(null);
-    setPopoverPos(null);
-  }, []);
-
-  const clearEditFocus = useCallback(() => {
-    setEditFocusStepId(null);
-  }, []);
+  const [stepEditor, setStepEditor] = useState<StepEditorTarget | null>(null);
+  const [draftYaml, setDraftYaml] = useState("");
+  const [editorErr, setEditorErr] = useState<string | null>(null);
+  /** While dragging a step row (for dimming + drop highlights). */
+  const [draggingStep, setDraggingStep] = useState<{ stageId: string; stepId: string } | null>(null);
 
   const selectedStage = useMemo(() => {
     const id = selectedStageId ?? model.stages[0]?.id;
     return model.stages.find((s) => s.id === id) ?? model.stages[0];
   }, [model.stages, selectedStageId]);
+
+  const editorTarget = useMemo(() => {
+    if (!stepEditor) return null;
+    const stage = model.stages.find((s) => s.id === stepEditor.stageId);
+    const step = stage?.steps.find((x) => x.id === stepEditor.stepId);
+    if (!stage || !step) return null;
+    return { stage, step };
+  }, [stepEditor, model.stages]);
 
   useEffect(() => {
     if (!selectedStageId && model.stages[0]) {
@@ -99,59 +74,30 @@ export function PipelineBuilder({ onYamlChange }: PipelineBuilderProps) {
   }, [model, onYamlChange]);
 
   useEffect(() => {
-    if (!previewMeta) return;
+    if (stepEditor && !editorTarget) {
+      setStepEditor(null);
+    }
+  }, [stepEditor, editorTarget]);
+
+  useEffect(() => {
+    if (!editorTarget) return;
+    setDraftYaml(serializeStepBlockForPipelineYaml(editorTarget.step));
+    setEditorErr(null);
+  }, [editorTarget]);
+
+  useEffect(() => {
+    if (!stepEditor) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeStepPreview();
+      if (e.key === "Escape") setStepEditor(null);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [previewMeta, closeStepPreview]);
+  }, [stepEditor]);
 
-  /** Pin popover to the palette button; flip above if it would clip the viewport. */
-  useLayoutEffect(() => {
-    if (!previewMeta) return;
-    const anchor = paletteAnchorRef.current;
-    const panel = stepPreviewPopoverRef.current;
-    if (!anchor || !panel) return;
-    setPopoverPos(measurePalettePopoverPosition(anchor, panel));
-  }, [previewMeta]);
-
-  useEffect(() => {
-    if (!previewMeta) return;
-    const onResize = () => {
-      const anchor = paletteAnchorRef.current;
-      const panel = stepPreviewPopoverRef.current;
-      if (!anchor || !panel) return;
-      setPopoverPos(measurePalettePopoverPosition(anchor, panel));
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [previewMeta]);
-
-  useEffect(() => {
-    if (!previewMeta) return;
-    const onScroll = () => closeStepPreview();
-    window.addEventListener("scroll", onScroll, true);
-    return () => window.removeEventListener("scroll", onScroll, true);
-  }, [previewMeta, closeStepPreview]);
-
-  /** Close when clicking outside the card and anchor (deferred so opening click does not fire). */
-  useEffect(() => {
-    if (!previewMeta) return;
-    const onDocMouseDown = (e: MouseEvent) => {
-      const t = e.target as Node;
-      if (stepPreviewPopoverRef.current?.contains(t)) return;
-      if (paletteAnchorRef.current?.contains(t)) return;
-      closeStepPreview();
-    };
-    const timeoutId = window.setTimeout(() => {
-      document.addEventListener("mousedown", onDocMouseDown);
-    }, 0);
-    return () => {
-      window.clearTimeout(timeoutId);
-      document.removeEventListener("mousedown", onDocMouseDown);
-    };
-  }, [previewMeta, closeStepPreview]);
+  const closeEditor = useCallback(() => {
+    setStepEditor(null);
+    setEditorErr(null);
+  }, []);
 
   function updateModel(fn: (m: PipelineModel) => PipelineModel) {
     setModel((m) => fn(structuredClone(m)));
@@ -180,6 +126,7 @@ export function PipelineBuilder({ onYamlChange }: PipelineBuilderProps) {
     if (selectedStageId === stageId) {
       setSelectedStageId(null);
     }
+    setStepEditor((cur) => (cur?.stageId === stageId ? null : cur));
   }
 
   function setStageName(stageId: string, name: string) {
@@ -189,10 +136,8 @@ export function PipelineBuilder({ onYamlChange }: PipelineBuilderProps) {
     }));
   }
 
-  function addStepFromPalette(meta: PredefinedStep, targetStageId: string): string {
-    const withObj = meta.defaultWith
-      ? { ...meta.defaultWith }
-      : {};
+  function addStepFromPalette(meta: PredefinedStep, targetStageId: string) {
+    const withObj = meta.defaultWith ? { ...meta.defaultWith } : {};
     const step: BuilderStep = {
       id: newId(),
       uses: meta.uses,
@@ -204,36 +149,52 @@ export function PipelineBuilder({ onYamlChange }: PipelineBuilderProps) {
         s.id === targetStageId ? { ...s, steps: [...s.steps, step] } : s
       ),
     }));
-    return step.id;
   }
 
   function removeStep(stageId: string, stepId: string) {
     updateModel((m) => ({
       ...m,
       stages: m.stages.map((s) =>
-        s.id === stageId
-          ? { ...s, steps: s.steps.filter((x) => x.id !== stepId) }
-          : s
+        s.id === stageId ? { ...s, steps: s.steps.filter((x) => x.id !== stepId) } : s
       ),
     }));
+    setStepEditor((cur) => (cur?.stepId === stepId ? null : cur));
   }
 
-  function moveStep(stageId: string, stepId: string, dir: -1 | 1) {
-    updateModel((m) => ({
-      ...m,
-      stages: m.stages.map((s) => {
-        if (s.id !== stageId) return s;
-        const i = s.steps.findIndex((x) => x.id === stepId);
-        const j = i + dir;
-        if (i < 0 || j < 0 || j >= s.steps.length) return s;
-        const steps = [...s.steps];
-        [steps[i], steps[j]] = [steps[j], steps[i]];
-        return { ...s, steps };
-      }),
-    }));
+  /**
+   * Move a step to another position: before `insertBeforeStepId`, or append if null.
+   * Works across stages and for reordering within one stage.
+   */
+  function moveStepTo(
+    fromStageId: string,
+    stepId: string,
+    toStageId: string,
+    insertBeforeStepId: string | null
+  ) {
+    if (insertBeforeStepId === stepId) return;
+    updateModel((m) => {
+      const next = structuredClone(m) as PipelineModel;
+      const fromS = next.stages.find((s) => s.id === fromStageId);
+      const toS = next.stages.find((s) => s.id === toStageId);
+      if (!fromS || !toS) return m;
+      const fromIdx = fromS.steps.findIndex((x) => x.id === stepId);
+      if (fromIdx < 0) return m;
+      const [step] = fromS.steps.splice(fromIdx, 1);
+      let insertIdx = toS.steps.length;
+      if (insertBeforeStepId) {
+        const j = toS.steps.findIndex((x) => x.id === insertBeforeStepId);
+        if (j >= 0) insertIdx = j;
+      }
+      toS.steps.splice(insertIdx, 0, step);
+      return next;
+    });
   }
 
-  function setStepWith(stageId: string, stepId: string, withObj: Record<string, unknown>) {
+  function updateStepFields(
+    stageId: string,
+    stepId: string,
+    fields: { uses: string; with: Record<string, unknown> }
+  ) {
     updateModel((m) => ({
       ...m,
       stages: m.stages.map((s) =>
@@ -241,12 +202,26 @@ export function PipelineBuilder({ onYamlChange }: PipelineBuilderProps) {
           ? {
               ...s,
               steps: s.steps.map((x) =>
-                x.id === stepId ? { ...x, with: withObj } : x
+                x.id === stepId ? { ...x, uses: fields.uses, with: fields.with } : x
               ),
             }
           : s
       ),
     }));
+  }
+
+  function applyStepEditor() {
+    if (!stepEditor) return;
+    const parsed = parseStepBlockFromPipelineYaml(draftYaml);
+    if (!parsed.ok) {
+      setEditorErr(parsed.error);
+      return;
+    }
+    updateStepFields(stepEditor.stageId, stepEditor.stepId, {
+      uses: parsed.uses,
+      with: parsed.with,
+    });
+    closeEditor();
   }
 
   const stepsByCategory = useMemo(() => {
@@ -257,6 +232,9 @@ export function PipelineBuilder({ onYamlChange }: PipelineBuilderProps) {
     }
     return map;
   }, []);
+
+  const editorMeta = editorTarget ? getStepMeta(editorTarget.step.uses) : null;
+  const editorTitle = editorMeta?.title ?? editorTarget?.step.uses ?? "Step";
 
   return (
     <div className="space-y-4 text-xs">
@@ -294,7 +272,6 @@ export function PipelineBuilder({ onYamlChange }: PipelineBuilderProps) {
         </label>
       </div>
 
-      {/* Stages + steps */}
       <div>
         <div className="flex items-center justify-between mb-2">
           <span className="text-gray-900 font-medium">Pipeline stages</span>
@@ -311,37 +288,34 @@ export function PipelineBuilder({ onYamlChange }: PipelineBuilderProps) {
             <StageBlock
               key={stage.id}
               stage={stage}
+              stageId={stage.id}
               selected={selectedStage?.id === stage.id}
               onSelect={() => setSelectedStageId(stage.id)}
               onNameChange={(name) => setStageName(stage.id, name)}
               onRemove={() => removeStage(stage.id)}
               canRemove={model.stages.length > 1}
               onRemoveStep={(stepId) => removeStep(stage.id, stepId)}
-              onMoveStep={(stepId, dir) => moveStep(stage.id, stepId, dir)}
-              expandedStep={expandedStep}
-              setExpandedStep={setExpandedStep}
-              onSetWith={(stepId, w) => setStepWith(stage.id, stepId, w)}
-              editFocusStepId={editFocusStepId}
-              onEditFocusHandled={clearEditFocus}
+              onMoveStepTo={(fromStageId, stepId, insertBeforeStepId) =>
+                moveStepTo(fromStageId, stepId, stage.id, insertBeforeStepId)
+              }
+              onOpenStepEditor={(stepId) => setStepEditor({ stageId: stage.id, stepId })}
+              draggingStep={draggingStep}
+              onStepDragStart={(stageId, stepId) => setDraggingStep({ stageId, stepId })}
+              onStepDragEnd={() => setDraggingStep(null)}
             />
           ))}
         </div>
       </div>
 
-      {/* Palette */}
       <div>
         <p className="text-gray-900 font-medium mb-2">Predefined steps</p>
         <p className="text-muted mb-3 text-[11px]">
-          Click a step for a kyklos.yaml card next to it, pick the target stage, then{" "}
-          <span className="text-gray-800">Add to stage</span>. Click a stage header to set the
-          default stage for the next add.
+          Click to add to the highlighted stage (
+          <span className="text-accent">{selectedStage?.name ?? "—"}</span>
+          ). Click the <span className="text-gray-800">main area</span> of a step to edit it. Drag the{" "}
+          <span className="text-gray-800">⋮⋮</span> handle to reorder or move to another stage; ✕ removes.
         </p>
-        <div
-          className="space-y-4 max-h-64 overflow-y-auto pr-1"
-          onScroll={() => {
-            if (previewMeta) closeStepPreview();
-          }}
-        >
+        <div className="space-y-4 max-h-64 overflow-y-auto pr-1">
           {STEP_CATEGORIES.map((cat) => (
             <div key={cat.id}>
               <p className="text-[10px] uppercase tracking-wide text-muted mb-2">
@@ -349,25 +323,36 @@ export function PipelineBuilder({ onYamlChange }: PipelineBuilderProps) {
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {stepsByCategory.get(cat.id)!.map((meta) => (
-                  <button
+                  <div
                     key={meta.uses}
-                    type="button"
-                    onClick={(e) => {
-                      paletteAnchorRef.current = e.currentTarget;
-                      setPopoverPos(computeInitialPopoverPosition(e.currentTarget));
-                      setPreviewMeta(meta);
-                      setPaletteTargetStageId(
-                        selectedStage?.id ?? model.stages[0]?.id ?? null
-                      );
-                    }}
-                    aria-label={`Show YAML example for ${meta.title} (${meta.uses})`}
-                    className="text-left p-3 rounded-xl border border-surface-3 bg-surface-2/40 hover:border-accent/45 hover:bg-surface-2/80 transition-all duration-200 hover:shadow-md hover:shadow-black/20 active:scale-[0.99]"
+                    className="rounded-xl border border-surface-3 bg-surface-2/40 hover:border-accent/45 hover:bg-surface-2/80 transition-all duration-200 hover:shadow-md hover:shadow-black/20 flex flex-col"
                   >
-                    <span className="font-mono text-accent text-[11px]">{meta.title}</span>
-                    <span className="block text-muted mt-0.5 leading-snug">
-                      {meta.description}
-                    </span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const sid = selectedStage?.id ?? model.stages[0]?.id;
+                        if (!sid) return;
+                        addStepFromPalette(meta, sid);
+                        setSelectedStageId(sid);
+                      }}
+                      aria-label={`Add step ${meta.title} (${meta.uses}) to highlighted stage`}
+                      className="text-left p-3 flex-1 rounded-t-xl active:scale-[0.99]"
+                    >
+                      <span className="font-mono text-accent text-[11px]">{meta.title}</span>
+                      <span className="block text-muted mt-0.5 leading-snug">{meta.description}</span>
+                    </button>
+                    <div className="px-3 pb-2 flex justify-end border-t border-surface-3/50">
+                      <a
+                        href={docsUrl(meta.docPath)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[10px] text-accent hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Documentation
+                      </a>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -375,81 +360,69 @@ export function PipelineBuilder({ onYamlChange }: PipelineBuilderProps) {
         </div>
       </div>
 
-      {previewMeta &&
-        popoverPos &&
+      {stepEditor &&
+        editorTarget &&
         createPortal(
           <div
-            ref={stepPreviewPopoverRef}
-            data-step-preview-card
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto bg-slate-900/40 backdrop-blur-[2px] animate-fade-in"
             role="dialog"
-            aria-modal="false"
-            aria-labelledby="step-example-title"
-            className="fixed z-[100] rounded-2xl border border-stone-200 bg-[#fafaf8] p-4 shadow-ky-lg animate-modal-in max-h-[min(72vh,28rem)] flex flex-col overflow-hidden"
-            style={{
-              top: popoverPos.top,
-              left: popoverPos.left,
-              width: popoverPos.width,
-            }}
+            aria-modal="true"
+            aria-labelledby="step-editor-title"
+            onClick={closeEditor}
           >
-            <h2 id="step-example-title" className="text-base font-bold mb-1 text-gray-900 shrink-0">
-              {previewMeta.title}
-            </h2>
-            <p className="text-[11px] text-muted mb-2 shrink-0">
-              Example under <code className="text-[10px]">pipeline</code> →{" "}
-              <code className="text-[10px]">stages</code> →{" "}
-              <code className="text-[10px]">steps</code>:
-            </p>
-            <pre className="text-[11px] font-mono bg-surface-2 border border-surface-3 rounded-lg p-3 overflow-x-auto text-gray-800 whitespace-pre shrink-0 max-h-[40vh] overflow-y-auto">
-              {formatStepExampleForKyklosYaml(previewMeta)}
-            </pre>
-            {previewMeta.withHint && (
-              <p className="text-[10px] text-muted mt-2 shrink-0">{previewMeta.withHint}</p>
-            )}
-            <label className="block mt-3 mb-1 shrink-0">
-              <span className="text-[11px] text-muted block mb-1.5">Add to stage</span>
-              <select
-                className="ky-input font-mono w-full text-xs py-2"
-                value={
-                  model.stages.some((s) => s.id === paletteTargetStageId)
-                    ? (paletteTargetStageId as string)
-                    : (model.stages[0]?.id ?? "")
-                }
-                onChange={(e) => setPaletteTargetStageId(e.target.value)}
+            <div
+              className="ky-modal-panel max-w-lg w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2
+                id="step-editor-title"
+                className="text-lg font-bold mb-2 text-gray-900 font-mono tracking-tight"
               >
-                {model.stages.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="flex gap-2 justify-end border-t border-surface-3/80 pt-3 mt-3 shrink-0">
-              <button
-                type="button"
-                className="ky-btn-ghost"
-                onClick={closeStepPreview}
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                className="ky-btn-primary text-[11px] py-2 px-3"
-                onClick={() => {
-                  const sid =
-                    paletteTargetStageId &&
-                    model.stages.some((s) => s.id === paletteTargetStageId)
-                      ? paletteTargetStageId
-                      : model.stages[0]?.id;
-                  if (!sid) return;
-                  const newStepId = addStepFromPalette(previewMeta, sid);
-                  setSelectedStageId(sid);
-                  setExpandedStep(newStepId);
-                  setEditFocusStepId(newStepId);
-                  closeStepPreview();
-                }}
-              >
-                Add to stage
-              </button>
+                {editorTitle}
+              </h2>
+              <p className="text-[11px] text-muted mb-3 leading-snug">
+                Example under <code className="text-[10px] text-stone-600">pipeline</code> →{" "}
+                <code className="text-[10px] text-stone-600">stages</code> →{" "}
+                <code className="text-[10px] text-stone-600">steps</code>:
+              </p>
+              {editorMeta?.withHint && (
+                <p className="text-[10px] text-muted mb-3 leading-snug">{editorMeta.withHint}</p>
+              )}
+              {editorMeta?.docPath && (
+                <p className="text-[11px] mb-3">
+                  <a
+                    href={docsUrl(editorMeta.docPath)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-accent hover:underline"
+                  >
+                    Documentation for this step
+                  </a>
+                </p>
+              )}
+              <div className="rounded-xl border border-stone-200/90 bg-stone-100/90 p-3 shadow-inner">
+                <textarea
+                  className="w-full min-h-[11rem] bg-transparent border-0 rounded-lg p-1 text-[11px] leading-relaxed font-mono text-stone-900 placeholder:text-stone-400 outline-none resize-y"
+                  spellCheck={false}
+                  aria-label="Step YAML"
+                  value={draftYaml}
+                  onChange={(e) => {
+                    setDraftYaml(e.target.value);
+                    setEditorErr(null);
+                  }}
+                />
+              </div>
+              {editorErr && (
+                <p className="text-danger text-[11px] mt-2 px-0.5">{editorErr}</p>
+              )}
+              <div className="flex gap-3 justify-end border-t border-surface-3/80 pt-4 mt-5">
+                <button type="button" className="ky-btn-ghost" onClick={closeEditor}>
+                  Close
+                </button>
+                <button type="button" className="ky-btn-primary min-w-[7rem]" onClick={applyStepEditor}>
+                  Save
+                </button>
+              </div>
             </div>
           </div>,
           document.body
@@ -460,32 +433,32 @@ export function PipelineBuilder({ onYamlChange }: PipelineBuilderProps) {
 
 function StageBlock({
   stage,
+  stageId,
   selected,
   onSelect,
   onNameChange,
   onRemove,
   canRemove,
   onRemoveStep,
-  onMoveStep,
-  expandedStep,
-  setExpandedStep,
-  onSetWith,
-  editFocusStepId,
-  onEditFocusHandled,
+  onMoveStepTo,
+  onOpenStepEditor,
+  draggingStep,
+  onStepDragStart,
+  onStepDragEnd,
 }: {
   stage: BuilderStage;
+  stageId: string;
   selected: boolean;
   onSelect: () => void;
   onNameChange: (name: string) => void;
   onRemove: () => void;
   canRemove: boolean;
   onRemoveStep: (stepId: string) => void;
-  onMoveStep: (stepId: string, dir: -1 | 1) => void;
-  expandedStep: string | null;
-  setExpandedStep: (id: string | null) => void;
-  onSetWith: (stepId: string, w: Record<string, unknown>) => void;
-  editFocusStepId: string | null;
-  onEditFocusHandled: () => void;
+  onMoveStepTo: (fromStageId: string, stepId: string, insertBeforeStepId: string | null) => void;
+  onOpenStepEditor: (stepId: string) => void;
+  draggingStep: { stageId: string; stepId: string } | null;
+  onStepDragStart: (stageId: string, stepId: string) => void;
+  onStepDragEnd: () => void;
 }) {
   return (
     <div
@@ -527,26 +500,60 @@ function StageBlock({
       </button>
       <div className="p-3 space-y-2 min-h-[48px]">
         {stage.steps.length === 0 ? (
-          <p className="text-muted text-[11px]">No steps — add from the palette below.</p>
+          <div
+            className="rounded-lg border border-dashed border-surface-3/90 bg-surface-0/40 px-3 py-6 text-center text-[11px] text-muted transition-colors"
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "move";
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              const p = readStepDragPayload(e);
+              if (!p) return;
+              onMoveStepTo(p.fromStageId, p.stepId, null);
+              onStepDragEnd();
+            }}
+          >
+            No steps — add from the palette, or <span className="text-gray-800">drop a step here</span> from another
+            stage.
+          </div>
         ) : (
-          stage.steps.map((step, idx) => (
-            <StepRow
-              key={step.id}
-              step={step}
-              index={idx}
-              total={stage.steps.length}
-              expanded={expandedStep === step.id}
-              onToggleExpand={() =>
-                setExpandedStep(expandedStep === step.id ? null : step.id)
-              }
-              onRemove={() => onRemoveStep(step.id)}
-              onMoveUp={() => onMoveStep(step.id, -1)}
-              onMoveDown={() => onMoveStep(step.id, 1)}
-              onSetWith={(w) => onSetWith(step.id, w)}
-              wantEditorFocus={editFocusStepId === step.id}
-              onEditFocusHandled={onEditFocusHandled}
-            />
-          ))
+          <>
+            {stage.steps.map((step, idx) => (
+              <StepRow
+                key={step.id}
+                step={step}
+                stageId={stageId}
+                index={idx}
+                isDragging={Boolean(
+                  draggingStep &&
+                    draggingStep.stageId === stageId &&
+                    draggingStep.stepId === step.id
+                )}
+                onOpenEditor={() => onOpenStepEditor(step.id)}
+                onRemove={() => onRemoveStep(step.id)}
+                onMoveStepTo={onMoveStepTo}
+                onStepDragStart={onStepDragStart}
+                onStepDragEnd={onStepDragEnd}
+              />
+            ))}
+            <div
+              className="rounded-md border border-dashed border-transparent py-1.5 text-center text-[10px] text-muted/80 hover:border-accent/30 hover:bg-accent/5 transition-colors"
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "move";
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                const p = readStepDragPayload(e);
+                if (!p) return;
+                onMoveStepTo(p.fromStageId, p.stepId, null);
+                onStepDragEnd();
+              }}
+            >
+              Drop here to append to this stage
+            </div>
+          </>
         )}
       </div>
     </div>
@@ -555,139 +562,98 @@ function StageBlock({
 
 function StepRow({
   step,
+  stageId,
   index,
-  total,
-  expanded,
-  onToggleExpand,
+  isDragging,
+  onOpenEditor,
   onRemove,
-  onMoveUp,
-  onMoveDown,
-  onSetWith,
-  wantEditorFocus,
-  onEditFocusHandled,
+  onMoveStepTo,
+  onStepDragStart,
+  onStepDragEnd,
 }: {
   step: BuilderStep;
+  stageId: string;
   index: number;
-  total: number;
-  expanded: boolean;
-  onToggleExpand: () => void;
+  isDragging: boolean;
+  onOpenEditor: () => void;
   onRemove: () => void;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-  onSetWith: (w: Record<string, unknown>) => void;
-  wantEditorFocus?: boolean;
-  onEditFocusHandled?: () => void;
+  onMoveStepTo: (fromStageId: string, stepId: string, insertBeforeStepId: string | null) => void;
+  onStepDragStart: (stageId: string, stepId: string) => void;
+  onStepDragEnd: () => void;
 }) {
   const meta = getStepMeta(step.uses);
   const title = meta?.title ?? step.uses;
   const hasWith = Object.keys(step.with).length > 0;
-  const [jsonErr, setJsonErr] = useState<string | null>(null);
-  const rowRef = useRef<HTMLDivElement>(null);
-  const withTextareaRef = useRef<HTMLTextAreaElement>(null);
-
-  useLayoutEffect(() => {
-    if (!expanded || !wantEditorFocus) return;
-    rowRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-    withTextareaRef.current?.focus({ preventScroll: true });
-    onEditFocusHandled?.();
-  }, [expanded, wantEditorFocus, onEditFocusHandled]);
 
   return (
     <div
-      ref={rowRef}
       id={`ky-pipeline-step-${step.id}`}
-      className={`rounded border transition-colors duration-150 ${
-        expanded
-          ? "border-accent/50 bg-surface-2/55 ring-1 ring-accent/25 shadow-sm"
-          : "border-surface-3/80 bg-surface-0/50 hover:border-surface-3"
+      className={`rounded border border-surface-3/80 bg-surface-0/50 flex items-stretch min-h-[3.25rem] hover:border-accent/45 transition-colors ${
+        isDragging ? "opacity-50" : ""
       }`}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const p = readStepDragPayload(e);
+        if (!p) return;
+        onMoveStepTo(p.fromStageId, p.stepId, step.id);
+        onStepDragEnd();
+      }}
     >
-      <div className="flex items-center gap-2 px-2 py-1.5">
-        <span className="text-muted font-mono text-[10px] w-5">{index + 1}</span>
-        <div className="flex-1 min-w-0">
-          <div className="font-mono text-gray-800 truncate">{title}</div>
+      <span
+        draggable={true}
+        role="presentation"
+        className="flex w-7 shrink-0 cursor-grab active:cursor-grabbing items-center justify-center text-muted hover:text-gray-700 border-r border-surface-3/60 bg-surface-2/30 select-none text-[10px] leading-none tracking-tighter px-0.5"
+        title="Drag to reorder or move to another stage"
+        aria-label="Drag to reorder"
+        onDragStart={(e) => {
+          e.dataTransfer.setData(
+            DND_STEP_MIME,
+            JSON.stringify({ fromStageId: stageId, stepId: step.id })
+          );
+          e.dataTransfer.effectAllowed = "move";
+          onStepDragStart(stageId, step.id);
+        }}
+        onDragEnd={() => onStepDragEnd()}
+      >
+        ⋮⋮
+      </span>
+      <button
+        type="button"
+        aria-label={`Edit step ${title}`}
+        className="flex flex-1 min-w-0 items-start gap-2 px-3 py-2 text-left cursor-pointer border-0 bg-transparent hover:bg-surface-2/50"
+        onClick={onOpenEditor}
+      >
+        <span className="text-muted font-mono text-[10px] w-4 shrink-0 pt-0.5">{index + 1}</span>
+        <div className="min-w-0 flex-1">
+          <div className="font-mono text-gray-800 truncate text-[11px]">{title}</div>
           <div className="text-[10px] text-muted truncate">{step.uses}</div>
-        </div>
-        <div className="flex items-center gap-0.5 shrink-0">
-          <button
-            type="button"
-            className="px-1 text-muted hover:text-gray-900 disabled:opacity-30"
-            disabled={index === 0}
-            onClick={onMoveUp}
-            title="Move up"
-          >
-            ↑
-          </button>
-          <button
-            type="button"
-            className="px-1 text-muted hover:text-gray-900 disabled:opacity-30"
-            disabled={index >= total - 1}
-            onClick={onMoveDown}
-            title="Move down"
-          >
-            ↓
-          </button>
-          <button
-            type="button"
-            className="px-1 text-muted hover:text-accent"
-            onClick={onToggleExpand}
-            title="Edit parameters"
-          >
-            {expanded ? "▲" : "▼"}
-          </button>
-          <button
-            type="button"
-            className="px-1 text-muted hover:text-danger"
-            onClick={onRemove}
-            title="Remove"
-          >
-            ✕
-          </button>
-        </div>
-      </div>
-      {expanded && (
-        <div className="px-2 pb-2 border-t border-surface-3/50">
-          {meta?.withHint && (
-            <p className="text-[10px] text-muted mt-2 mb-1">{meta.withHint}</p>
+          {!hasWith ? (
+            <div className="text-[9px] text-accent/90 mt-1 font-medium">Click to edit YAML and variables</div>
+          ) : (
+            <div className="text-[9px] text-muted font-mono truncate mt-0.5">
+              with: {Object.keys(step.with).join(", ")}
+            </div>
           )}
-          <label className="block text-[10px] text-muted mb-1">with (JSON)</label>
-          <p className="text-[10px] text-muted/90 mb-1.5 leading-snug">
-            Edit step variables; changes are saved when you leave this field and appear in the YAML
-            preview.
-          </p>
-          <textarea
-            ref={withTextareaRef}
-            className="w-full bg-surface-2 border border-surface-3 rounded px-2 py-1.5 font-mono text-[11px] min-h-[6.5rem] h-28 outline-none focus:border-accent focus:ring-1 focus:ring-accent/30"
-            spellCheck={false}
-            defaultValue={JSON.stringify(step.with, null, 2)}
-            key={step.id + JSON.stringify(step.with)}
-            onBlur={(e) => {
-              const raw = e.target.value.trim();
-              if (!raw) {
-                onSetWith({});
-                setJsonErr(null);
-                return;
-              }
-              try {
-                const parsed = JSON.parse(raw) as Record<string, unknown>;
-                if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-                  throw new Error("with must be a JSON object");
-                }
-                onSetWith(parsed);
-                setJsonErr(null);
-              } catch {
-                setJsonErr("Invalid JSON object");
-              }
-            }}
-          />
-          {jsonErr && <p className="text-danger text-[10px] mt-1">{jsonErr}</p>}
         </div>
-      )}
-      {!expanded && hasWith && (
-        <div className="px-2 pb-1.5 text-[10px] text-muted font-mono truncate">
-          with: {Object.keys(step.with).join(", ")}
-        </div>
-      )}
+      </button>
+      <div className="flex items-center shrink-0 border-l border-surface-3/60 pl-1 pr-1.5 py-1 self-stretch bg-surface-0/80">
+        <button
+          type="button"
+          className="px-1.5 text-muted hover:text-danger rounded"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          title="Remove"
+        >
+          ✕
+        </button>
+      </div>
     </div>
   );
 }

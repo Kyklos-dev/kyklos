@@ -18,6 +18,7 @@ If you are new here, read **[Understanding Kyklos](../understanding-kyklos)** fi
 | **Artifacts** | Persisted files from runs → [Artifacts](../artifacts) |
 | **Behavior** | Gates, retries, jumps → [Stages, gates & failure](./stages-gates-and-failure) |
 | **Reference** | Every key in tables → [YAML reference](./yaml-reference) |
+| **Steps** | Each built-in `kyklos/...` step, options, and scores → [Built-in steps](/reference/steps/) |
 | **Examples** | Full files and snippets → [Code examples](./code-examples) |
 | **Practices** | Naming, thresholds, security, disk → [Best practices](../best-practices) |
 

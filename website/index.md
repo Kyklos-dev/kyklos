@@ -55,6 +55,12 @@ features:
   <span class="more">Read →</span>
 </a>
 
+<a class="ky-doc-card" href="reference/steps/">
+  <h3>Built-in steps</h3>
+  <p>Every shipped step: <code>with:</code> options, scores, env vars, and links from the dashboard.</p>
+  <span class="more">Read →</span>
+</a>
+
 <a class="ky-doc-card" href="concepts/architecture">
   <h3>Architecture</h3>
   <p>Server, scheduler, engine, persistence — how the binary is organized.</p>

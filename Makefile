@@ -9,8 +9,8 @@ setup:
 	python3 -m venv $(VENV)
 	$(VENV)/bin/pip install --upgrade pip
 	$(VENV)/bin/pip install -e sdk/python/
-	$(VENV)/bin/pip install anthropic jsonschema
-	@echo "Optional LLM runners: pip install openai google-generativeai"
+	$(VENV)/bin/pip install jsonschema deepeval litellm
+	@echo "Optional LLM runners: pip install anthropic openai google-generativeai"
 	@echo ""
 	@echo "Setup complete. Add to kyklos-server.yaml:"
 	@echo "  server:"

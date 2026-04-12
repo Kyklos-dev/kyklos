@@ -14,6 +14,13 @@ export interface PredefinedStep {
   withHint?: string;
   /** Default `with:` block (omit step.with in YAML if empty) */
   defaultWith?: Record<string, unknown>;
+  /**
+   * Full `with:` options for the Step catalog example (all known keys).
+   * When set, the catalog prefers this over defaultWith for the YAML preview.
+   */
+  fullWith?: Record<string, unknown>;
+  /** Path on the docs site (path + hash), e.g. `/reference/steps/build#step-lint` */
+  docPath: string;
 }
 
 export const STEP_CATEGORIES: { id: StepCategory; label: string }[] = [
@@ -31,12 +38,14 @@ export const PREDEFINED_STEPS: PredefinedStep[] = [
     title: "Lint",
     description: "Validate agent config before running costly steps.",
     category: "build",
+    docPath: "/reference/steps/build#step-lint",
   },
   {
     uses: "kyklos/snapshot",
     title: "Snapshot",
     description: "Hash agent definition for drift detection.",
     category: "build",
+    docPath: "/reference/steps/build#step-snapshot",
   },
   {
     uses: "kyklos/diff",
@@ -44,6 +53,10 @@ export const PREDEFINED_STEPS: PredefinedStep[] = [
     description: "Compare agent outputs or configs across revisions.",
     category: "build",
     withHint: "Configure paths in with: per your repo layout.",
+    fullWith: {
+      compare_to: "last_passing",
+    },
+    docPath: "/reference/steps/build#step-diff",
   },
   // Test
   {
@@ -56,18 +69,36 @@ export const PREDEFINED_STEPS: PredefinedStep[] = [
       dataset: "./datasets/hello.jsonl",
       concurrency: 4,
     },
+    fullWith: {
+      dataset: "./datasets/eval.jsonl",
+      runs: 1,
+      concurrency: 4,
+      timeout_per_run: 60,
+    },
+    docPath: "/reference/steps/test#step-run-dataset",
   },
   {
     uses: "kyklos/simulate-conversation",
     title: "Simulate conversation",
     description: "Multi-turn scripted dialog tests.",
     category: "test",
+    fullWith: {
+      scenarios: "./scenarios.jsonl",
+      max_turns: 8,
+      runs: 1,
+    },
+    docPath: "/reference/steps/test#step-simulate-conversation",
   },
   {
     uses: "kyklos/check-tool-calls",
     title: "Check tool calls",
     description: "Assert expected tool usage from runs.",
     category: "test",
+    fullWith: {
+      dataset: "./datasets/tool_eval.jsonl",
+      from: "run-dataset",
+    },
+    docPath: "/reference/steps/test#step-check-tool-calls",
   },
   {
     uses: "kyklos/wait",
@@ -77,19 +108,33 @@ export const PREDEFINED_STEPS: PredefinedStep[] = [
     category: "test",
     withHint: "seconds: 70 — capped at 7200 for safety.",
     defaultWith: { seconds: 70 },
+    fullWith: { seconds: 70 },
+    docPath: "/reference/steps/test#step-wait",
   },
   // Evaluate
   {
     uses: "kyklos/semantic-similarity",
     title: "Semantic similarity",
-    description: "Score outputs vs expected with embeddings or overlap.",
+    description:
+      "DeepEval embedding cosine vs expected_output_contains; token fallback when needed.",
     category: "evaluate",
     withHint:
-      'from: "stage.kyklos/step" — optional slice_field on dataset rows → slice_<name> scores for pass_if',
+      "method: auto|embedding|token — embedding_model (OpenAI) — dataset + slice_field for slices",
     defaultWith: {
       from: "test.kyklos/run-dataset",
-      threshold: 0.7,
+      dataset: "./dataset.jsonl",
+      threshold: 0.85,
+      method: "auto",
     },
+    fullWith: {
+      from: "test.kyklos/run-dataset",
+      dataset: "./dataset.jsonl",
+      threshold: 0.85,
+      method: "auto",
+      embedding_model: "text-embedding-3-small",
+      slice_field: "region",
+    },
+    docPath: "/reference/steps/evaluate#step-semantic-similarity",
   },
   {
     uses: "kyklos/exact-match",
@@ -98,6 +143,13 @@ export const PREDEFINED_STEPS: PredefinedStep[] = [
     category: "evaluate",
     withHint:
       "optional slice_field (dataset column) emits per-slice accuracy as slice_<slug> for gates",
+    fullWith: {
+      from: "test.kyklos/run-dataset",
+      dataset: "./dataset.jsonl",
+      field: "intent",
+      slice_field: "locale",
+    },
+    docPath: "/reference/steps/evaluate#step-exact-match",
   },
   {
     uses: "kyklos/llm-judge",
@@ -107,7 +159,17 @@ export const PREDEFINED_STEPS: PredefinedStep[] = [
     defaultWith: {
       from: "test.kyklos/run-dataset",
       rubric: "./rubric.md",
+      model: "openai/gpt-4o-mini",
+      threshold: 0.7,
     },
+    fullWith: {
+      from: "test.kyklos/run-dataset",
+      rubric: "./eval/rubric.md",
+      model: "openai/gpt-4o-mini",
+      threshold: 0.7,
+      temperature: 0.2,
+    },
+    docPath: "/reference/steps/evaluate#step-llm-judge",
   },
   {
     uses: "kyklos/http-judge",
@@ -120,6 +182,16 @@ export const PREDEFINED_STEPS: PredefinedStep[] = [
       from: "test.kyklos/run-dataset",
       url: "https://example.com/judge",
     },
+    fullWith: {
+      from: "test.kyklos/run-dataset",
+      url: "https://example.com/judge",
+      method: "POST",
+      timeout_seconds: 120,
+      score_key: "score",
+      pass_threshold: 0.7,
+      headers: { Authorization: "Bearer <token>" },
+    },
+    docPath: "/reference/steps/evaluate#step-http-judge",
   },
   {
     uses: "kyklos/safety-check",
@@ -127,6 +199,11 @@ export const PREDEFINED_STEPS: PredefinedStep[] = [
     description: "Policy / safety validation on outputs.",
     category: "evaluate",
     defaultWith: { from: "test.kyklos/run-dataset" },
+    fullWith: {
+      from: "test.kyklos/run-dataset",
+      checks: ["harmful_content", "pii", "prompt_injection"],
+    },
+    docPath: "/reference/steps/evaluate#step-safety-check",
   },
   {
     uses: "kyklos/cost-check",
@@ -134,19 +211,30 @@ export const PREDEFINED_STEPS: PredefinedStep[] = [
     description: "Fail if run cost exceeds a USD cap.",
     category: "evaluate",
     defaultWith: { from: "test.kyklos/run-dataset", max_usd: 0.1 },
+    fullWith: { from: "test.kyklos/run-dataset", max_usd: 0.05 },
+    docPath: "/reference/steps/evaluate#step-cost-check",
   },
   {
     uses: "kyklos/latency-check",
     title: "Latency check",
     description: "Fail if p95 latency exceeds a threshold.",
     category: "evaluate",
-    defaultWith: { from: "test.kyklos/run-dataset", p95_ms: 5000 },
+    defaultWith: { from: "test.kyklos/run-dataset", max_p95_ms: 5000 },
+    fullWith: { from: "test.kyklos/run-dataset", max_p95_ms: 5000 },
+    docPath: "/reference/steps/evaluate#step-latency-check",
   },
   {
     uses: "kyklos/regression",
     title: "Regression",
     description: "Compare metrics against a baseline.",
     category: "evaluate",
+    fullWith: {
+      fail_if: {
+        "llm-judge.score": "drops > 0.03",
+        "cost-check.avg_cost_per_run": "increases > 0.02",
+      },
+    },
+    docPath: "/reference/steps/evaluate#step-regression",
   },
   {
     uses: "kyklos/json-schema",
@@ -158,6 +246,12 @@ export const PREDEFINED_STEPS: PredefinedStep[] = [
       from: "test.kyklos/run-dataset",
       schema: "./schemas/output.schema.json",
     },
+    fullWith: {
+      from: "test.kyklos/run-dataset",
+      schema: "./schemas/output.schema.json",
+      field: "response",
+    },
+    docPath: "/reference/steps/evaluate#step-json-schema",
   },
   // Register
   {
@@ -166,12 +260,20 @@ export const PREDEFINED_STEPS: PredefinedStep[] = [
     description: "Tag the artifact (e.g. latest).",
     category: "register",
     defaultWith: { tag: "latest" },
+    fullWith: { tag: "v1.0.0" },
+    docPath: "/reference/steps/register-and-deploy#step-tag",
   },
   {
     uses: "kyklos/push",
     title: "Push",
     description: "Push registered artifacts to a remote.",
     category: "register",
+    fullWith: {
+      registry: "local",
+      path: "./registry",
+      bucket: "my-artifact-bucket",
+    },
+    docPath: "/reference/steps/register-and-deploy#step-push",
   },
   // Deploy
   {
@@ -179,18 +281,37 @@ export const PREDEFINED_STEPS: PredefinedStep[] = [
     title: "Deploy endpoint",
     description: "Deploy or update an inference endpoint.",
     category: "deploy",
+    fullWith: {
+      platform: "local",
+      endpoint: "/agents/default",
+      langserve_url: "https://langserve.example.com",
+      script: "./scripts/deploy.sh",
+    },
+    docPath: "/reference/steps/register-and-deploy#step-deploy-endpoint",
   },
   {
     uses: "kyklos/canary",
     title: "Canary",
     description: "Gradual traffic shift with health gates.",
     category: "deploy",
+    fullWith: {
+      traffic_percent: 10,
+      duration_minutes: 30,
+      on_local: "warn",
+    },
+    docPath: "/reference/steps/register-and-deploy#step-canary",
   },
   {
     uses: "kyklos/health-check",
     title: "Health check",
     description: "Probe a deployed endpoint after release.",
     category: "deploy",
+    fullWith: {
+      probe: "hello, are you working?",
+      expected_contains: "ok",
+      timeout_ms: 5000,
+    },
+    docPath: "/reference/steps/register-and-deploy#step-health-check",
   },
 ];
 
