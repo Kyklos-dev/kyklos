@@ -111,7 +111,7 @@ jobs:
           find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp {} upload/ \;
           cd upload && sha256sum * > checksums-sha256.txt
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: upload/*
           generate_release_notes: true
